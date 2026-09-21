@@ -1,0 +1,7 @@
+# Files the screenshots in this directory were captured against.
+# Regenerate ONLY after re-capturing the evidence, then re-run ./check.sh.
+1d42f7332f71c56b20353f777a3d5b24f481bf170751d039906faaff6add4e64  crates/executors/src/executors/pi.rs
+fe2aa51e74c4b2059830c4a8a7951a85c9c8fb8c4929041b8d01b8ed27a4a72a  packages/web-core/src/shared/components/AgentIcon.tsx
+bdf9d53dd0a5d2c25770b5c2f2bf69aabc95895fe2a209381e1737e187389302  packages/public/agents/pi-light.svg
+3f7817551addcd0fe2ab70ab723b725407d38002a8974636b1c0bf630cc71174  packages/public/agents/pi-dark.svg
+78ec44b01ee3f5d9b0cd16cf7a1f304c4c2957adbf5b487304f67f9ff8f7af0b  packages/web-core/src/shared/lib/modelSelector.ts
