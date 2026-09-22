@@ -538,6 +538,9 @@
       "tooltip": "登录以查看项目",
       "title": "看板",
       "description": "登录以使用看板管理您的编码代理。"
+    },
+    "projects": {
+      "create": "创建项目"
     }
   },
   "errors": {

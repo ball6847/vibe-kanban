@@ -60,6 +60,11 @@ interface AppBarProps {
   isExportActive?: boolean;
   activeProjectId: string | null;
   isSignedIn?: boolean;
+  /**
+   * Renders the local projects section (list + create) without requiring a
+   * cloud session. Cloud sign-in stays the trigger when this is false.
+   */
+  projectsEnabled?: boolean;
   isLoadingProjects?: boolean;
   onSignIn?: () => void;
   onHoverStart?: () => void;
@@ -212,6 +217,7 @@ export function AppBar({
   isExportActive = false,
   activeProjectId,
   isSignedIn,
+  projectsEnabled = false,
   isLoadingProjects,
   onSignIn,
   onHoverStart,
@@ -283,7 +289,7 @@ export function AppBar({
 
   const projectSectionItems: AppBarSectionItem[] = [];
 
-  if (!isSignedIn) {
+  if (!isSignedIn && !projectsEnabled) {
     projectSectionItems.push({
       key: 'kanban-cta',
       kind: 'kanban-cta',
@@ -308,11 +314,11 @@ export function AppBar({
     });
   }
 
-  if (isSignedIn && onCreateProject) {
+  if ((isSignedIn || projectsEnabled) && onCreateProject) {
     projectSectionItems.push({
       key: 'create-project',
       kind: 'icon-button',
-      label: 'Create project',
+      label: t('appBar.projects.create'),
       icon: PlusIcon,
       onClick: onCreateProject,
       className: 'bg-primary text-muted hover:text-normal hover:bg-tertiary',

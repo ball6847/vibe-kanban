@@ -542,6 +542,9 @@
       "tooltip": "Sign in to view projects",
       "title": "Kanban Boards",
       "description": "Sign in to organise your coding agents with kanban boards."
+    },
+    "projects": {
+      "create": "Create project"
     }
   },
   "askQuestion": {
