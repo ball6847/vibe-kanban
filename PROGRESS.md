@@ -1,6 +1,6 @@
 # PROGRESS — cloud-style local projects rail
 
-**Current state:** M1 done. Navigation model has a `projects` destination + `goToProjects()`.
+**Current state:** M3 done. `SCORE` (fast) 77/112. Navigation model has a `projects` destination + `goToProjects()`.
 `SCORE` tracked per milestone (baseline recorded below).
 
 ## Baseline (M0)
@@ -13,8 +13,8 @@
 ## Milestones
 - [x] M0 — baseline recorded, loop docs reset
 - [x] M1 — nav model: `{ kind: 'projects' }` + `goToProjects()` in `appNavigation.ts`
-- [ ] M2 — local-web nav mapping
-- [ ] M3 — pure rail model + vitest
+- [x] M2 — local-web nav mapping
+- [x] M3 — pure rail model + vitest (28 tests / 3 files)
 - [ ] M4 — AppBar local mode + i18n key
 - [ ] M5 — SharedAppLayout wiring
 - [ ] M6 — live verification (evidence)

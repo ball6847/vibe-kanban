@@ -6,3 +6,4 @@
 - Repo-wide: 104 unused i18n keys on `main` (remote-era leftovers).
 - `scripts/check-unused-i18n-keys.mjs` prints a `find:` error for the deleted `packages/remote-web`.
 - `README.md` has no mention of the local projects feature or its rail.
+- `.pi-loop-log.jsonl` is tracked but is a runtime log (gitignore it and `git rm --cached`).
