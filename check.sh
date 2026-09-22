@@ -114,8 +114,10 @@ GROUP "9. format (goal-owned files only)"
 # Repo-wide format drift on main is pre-existing (26 unformatted web-core files, unchanged by
 # this branch). Only the files this goal touches must be formatted, to keep the diff surgical.
 if [ "$FAST" = 1 ]; then
-  SKIP "prettier --check (goal files)"
+  SKIP "local-web lint"; SKIP "ui lint"; SKIP "prettier --check (goal files)"
 else
+  run "pnpm run local-web:lint" 4 pnpm run local-web:lint
+  run "pnpm run ui:lint"        4 pnpm run ui:lint
   F_CORE=""; F_WEB=""; F_UI=""
   for f in shared/lib/routes/appNavigation.ts pages/kanban/localProjectsRailModel.ts \
            pages/kanban/localProjectsRailModel.test.ts i18n/locales/en/common.json; do

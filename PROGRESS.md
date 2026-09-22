@@ -1,6 +1,6 @@
 # PROGRESS — cloud-style local projects rail
 
-**Current state:** M4 done. `SCORE` (fast) 93/112. Navigation model has a `projects` destination + `goToProjects()`.
+**Current state:** M5 done. Full gate **133 -> 141/141 green** (lint gates restored). Live behaviour not yet verified (M6/M7). Navigation model has a `projects` destination + `goToProjects()`.
 `SCORE` tracked per milestone (baseline recorded below).
 
 ## Baseline (M0)
@@ -16,7 +16,7 @@
 - [x] M2 — local-web nav mapping
 - [x] M3 — pure rail model + vitest (28 tests / 3 files)
 - [x] M4 — AppBar local mode + i18n key (all 7 locales)
-- [ ] M5 — SharedAppLayout wiring
+- [x] M5 — SharedAppLayout wiring (react-query `['local-projects']`)
 - [ ] M6 — live verification (evidence)
 - [ ] M7 — refresh correctness
 - [ ] M8 — quality pass (format, docs, full green)

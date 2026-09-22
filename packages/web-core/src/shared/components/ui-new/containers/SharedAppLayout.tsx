@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Outlet, useNavigate, useParams } from '@tanstack/react-router';
 import { siDiscord, siGithub } from 'simple-icons';
-import {
-  XIcon,
-  LayoutIcon,
-  DownloadSimpleIcon,
-} from '@phosphor-icons/react';
+import { XIcon, LayoutIcon, DownloadSimpleIcon } from '@phosphor-icons/react';
 import { useIsMobile } from '@/shared/hooks/useIsMobile';
 import { useUiPreferencesStore } from '@/shared/stores/useUiPreferencesStore';
 import { cn } from '@/shared/lib/utils';
@@ -34,6 +31,11 @@ import { useWorkspaceSidebarPreviewController } from '@/shared/hooks/useWorkspac
 import { WorkspacesSidebarContainer } from '@/pages/workspaces/WorkspacesSidebarContainer';
 import { WorkspacesSidebarReopenTag } from '@vibe/ui/components/WorkspacesSidebar';
 import { CloudShutdownExportBanner } from '@/shared/components/CloudShutdownExportBanner';
+import { localProjectsApi } from '@/shared/lib/api';
+import {
+  resolveActiveProjectId,
+  toAppBarProjects,
+} from '@/pages/kanban/localProjectsRailModel';
 
 export function SharedAppLayout() {
   const appNavigation = useAppNavigation();
@@ -100,7 +102,11 @@ export function SharedAppLayout() {
   const showCloudShutdownBanner = isExportActive;
   const isWorkspaceSidebarPreviewEnabled =
     !isMobile && isWorkspacesActive && !isLeftSidebarVisible;
-  const activeProjectId = null;
+  const activeProjectId = resolveActiveProjectId(currentDestination);
+  const { data: localProjects = [], isLoading: isLoadingProjects } = useQuery({
+    queryKey: ['local-projects'],
+    queryFn: localProjectsApi.list,
+  });
   const activeHostId =
     getDestinationHostId(currentDestination) ?? routeHostId ?? null;
   const sidebarPreview = useWorkspaceSidebarPreviewController({
@@ -160,171 +166,173 @@ export function SharedAppLayout() {
   }, [openRelaySettings]);
 
   return (
-      <div
-        className={cn(
-          'bg-primary',
-          isMobile
-            ? 'flex fixed inset-0 pb-[env(safe-area-inset-bottom)]'
-            : cn(
-                'grid grid-cols-[auto_1fr] h-screen',
-                showCloudShutdownBanner
-                  ? 'grid-rows-[auto_auto_1fr]'
-                  : 'grid-rows-[auto_1fr]'
-              )
-        )}
-      >
-        {!isMobile && (
-          <>
-            {showCloudShutdownBanner && (
-              <div className="col-span-2">
-                <CloudShutdownExportBanner onClick={handleExportClick} />
+    <div
+      className={cn(
+        'bg-primary',
+        isMobile
+          ? 'flex fixed inset-0 pb-[env(safe-area-inset-bottom)]'
+          : cn(
+              'grid grid-cols-[auto_1fr] h-screen',
+              showCloudShutdownBanner
+                ? 'grid-rows-[auto_auto_1fr]'
+                : 'grid-rows-[auto_1fr]'
+            )
+      )}
+    >
+      {!isMobile && (
+        <>
+          {showCloudShutdownBanner && (
+            <div className="col-span-2">
+              <CloudShutdownExportBanner onClick={handleExportClick} />
+            </div>
+          )}
+          {/* Desktop corner spacer. */}
+          <div
+            data-tauri-drag-region
+            className="bg-secondary"
+            style={isTauriMac() ? { minWidth: 56 } : undefined}
+          />
+          {/* Row-1 filler: keeps the grid at 2x2 so the AppBar lands in
+                column 1 row 2 and the content in column 2 row 2. */}
+          <div />
+          {/* Desktop AppBar sidebar. */}
+          <AppBar
+            projects={toAppBarProjects(localProjects)}
+            projectsEnabled
+            isLoadingProjects={isLoadingProjects}
+            onProjectClick={(projectId) => appNavigation.goToProject(projectId)}
+            onCreateProject={() => appNavigation.goToProjects()}
+            activeHostId={activeHostId}
+            onExportClick={handleExportClick}
+            onWorkspacesClick={handleWorkspacesClick}
+            onHostClick={handleHostClick}
+            onPairHostClick={handlePairHostClick}
+            isWorkspacesActive={isWorkspacesActive}
+            isExportActive={isExportActive}
+            activeProjectId={activeProjectId}
+            isSignedIn={isSignedIn}
+            onSignIn={handleSignIn}
+            onHoverStart={() => setIsAppBarHovered(true)}
+            onHoverEnd={() => setIsAppBarHovered(false)}
+            userPopover={
+              <AppBarUserPopoverContainer
+                organizations={organizations}
+                selectedOrgId={selectedOrgId ?? ''}
+                onOrgSelect={setSelectedOrgId}
+              />
+            }
+            starCount={starCount}
+            onlineCount={onlineCount}
+            appVersion={appVersion}
+            updateVersion={updateVersion}
+            onUpdateClick={restartForUpdate ?? undefined}
+            githubIconPath={siGithub.path}
+            discordIconPath={siDiscord.path}
+          />
+          {/* Desktop content. */}
+          <div className="relative min-h-0 overflow-hidden">
+            {isWorkspaceSidebarPreviewEnabled && (
+              <div className="absolute inset-y-0 left-0 z-20 flex items-center">
+                <WorkspacesSidebarReopenTag
+                  active={sidebarPreview.isPreviewOpen}
+                  onHoverStart={sidebarPreview.handleHandleHoverStart}
+                  onHoverEnd={sidebarPreview.handleHandleHoverEnd}
+                  ariaLabel="Workspaces"
+                />
               </div>
             )}
-            {/* Desktop corner spacer. */}
-            <div
-              data-tauri-drag-region
-              className="bg-secondary"
-              style={isTauriMac() ? { minWidth: 56 } : undefined}
-            />
-            {/* Row-1 filler: keeps the grid at 2x2 so the AppBar lands in
-                column 1 row 2 and the content in column 2 row 2. */}
-            <div />
-            {/* Desktop AppBar sidebar. */}
-            <AppBar
-              projects={[]}
-              activeHostId={activeHostId}
-              onExportClick={handleExportClick}
-              onWorkspacesClick={handleWorkspacesClick}
-              onHostClick={handleHostClick}
-              onPairHostClick={handlePairHostClick}
-              isWorkspacesActive={isWorkspacesActive}
-              isExportActive={isExportActive}
-              activeProjectId={activeProjectId}
-              isSignedIn={isSignedIn}
-              onSignIn={handleSignIn}
-              onHoverStart={() => setIsAppBarHovered(true)}
-              onHoverEnd={() => setIsAppBarHovered(false)}
-              userPopover={
-                <AppBarUserPopoverContainer
-                  organizations={organizations}
-                  selectedOrgId={selectedOrgId ?? ''}
-                  onOrgSelect={setSelectedOrgId}
-                />
-              }
-              starCount={starCount}
-              onlineCount={onlineCount}
-              appVersion={appVersion}
-              updateVersion={updateVersion}
-              onUpdateClick={restartForUpdate ?? undefined}
-              githubIconPath={siGithub.path}
-              discordIconPath={siDiscord.path}
-            />
-            {/* Desktop content. */}
-            <div className="relative min-h-0 overflow-hidden">
-              {isWorkspaceSidebarPreviewEnabled && (
-                <div className="absolute inset-y-0 left-0 z-20 flex items-center">
-                  <WorkspacesSidebarReopenTag
-                    active={sidebarPreview.isPreviewOpen}
-                    onHoverStart={sidebarPreview.handleHandleHoverStart}
-                    onHoverEnd={sidebarPreview.handleHandleHoverEnd}
-                    ariaLabel="Workspaces"
-                  />
-                </div>
-              )}
 
-              {isWorkspaceSidebarPreviewEnabled && (
-                <div
-                  className={cn(
-                    'absolute left-0 top-0 z-30 h-full w-[300px] transition-transform duration-150 ease-out',
-                    sidebarPreview.isPreviewOpen
-                      ? 'translate-x-0 pointer-events-auto'
-                      : '-translate-x-full pointer-events-none'
-                  )}
-                  onMouseEnter={sidebarPreview.handlePreviewHoverStart}
-                  onMouseLeave={sidebarPreview.handlePreviewHoverEnd}
-                >
-                  <div className="h-full w-full overflow-hidden border-r border-border bg-secondary shadow-lg">
-                    <WorkspacesSidebarContainer />
-                  </div>
-                </div>
-              )}
-
-              <Outlet />
-            </div>
-          </>
-        )}
-
-        {isMobile && (
-          <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-            {showCloudShutdownBanner && (
-              <CloudShutdownExportBanner onClick={handleExportClick} />
-            )}
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <Outlet />
-            </div>
-          </div>
-        )}
-
-        {/* Mobile project navigation drawer */}
-        <MobileDrawer
-          open={isDrawerOpen && isMobile}
-          onClose={() => setIsDrawerOpen(false)}
-        >
-          <div className="flex flex-col h-full">
-            {/* Header: org name + close button */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <span className="text-sm font-medium text-high truncate">
-                Organization
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsDrawerOpen(false)}
-                className="p-1 rounded-sm text-low hover:text-normal cursor-pointer"
+            {isWorkspaceSidebarPreviewEnabled && (
+              <div
+                className={cn(
+                  'absolute left-0 top-0 z-30 h-full w-[300px] transition-transform duration-150 ease-out',
+                  sidebarPreview.isPreviewOpen
+                    ? 'translate-x-0 pointer-events-auto'
+                    : '-translate-x-full pointer-events-none'
+                )}
+                onMouseEnter={sidebarPreview.handlePreviewHoverStart}
+                onMouseLeave={sidebarPreview.handlePreviewHoverEnd}
               >
-                <XIcon className="h-4 w-4" weight="bold" />
-              </button>
-            </div>
+                <div className="h-full w-full overflow-hidden border-r border-border bg-secondary shadow-lg">
+                  <WorkspacesSidebarContainer />
+                </div>
+              </div>
+            )}
 
-            {/* Workspaces link */}
+            <Outlet />
+          </div>
+        </>
+      )}
+
+      {isMobile && (
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          {showCloudShutdownBanner && (
+            <CloudShutdownExportBanner onClick={handleExportClick} />
+          )}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <Outlet />
+          </div>
+        </div>
+      )}
+
+      {/* Mobile project navigation drawer */}
+      <MobileDrawer
+        open={isDrawerOpen && isMobile}
+        onClose={() => setIsDrawerOpen(false)}
+      >
+        <div className="flex flex-col h-full">
+          {/* Header: org name + close button */}
+          <div className="flex items-center justify-between p-4 border-b border-border">
+            <span className="text-sm font-medium text-high truncate">
+              Organization
+            </span>
             <button
               type="button"
-              onClick={() => {
-                void navigate({ to: '/workspaces' });
-                setIsDrawerOpen(false);
-              }}
-              className="flex items-center gap-2 px-4 py-3 text-sm text-normal hover:bg-secondary cursor-pointer"
+              onClick={() => setIsDrawerOpen(false)}
+              className="p-1 rounded-sm text-low hover:text-normal cursor-pointer"
             >
-              <LayoutIcon className="h-4 w-4" />
-              Workspaces
+              <XIcon className="h-4 w-4" weight="bold" />
             </button>
-
-            {/* Divider */}
-            <div className="border-t border-border mx-4" />
-
-            {/* Export link */}
-            {isSignedIn && (
-              <div className="px-4 py-3">
-                <p className="mb-2 text-xs font-medium text-low">Export</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleExportClick();
-                    setIsDrawerOpen(false);
-                  }}
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm text-normal hover:bg-secondary cursor-pointer"
-                >
-                  <DownloadSimpleIcon className="h-4 w-4" />
-                  Export data
-                </button>
-              </div>
-            )}
-
-            {/* Divider */}
-            {isSignedIn && <div className="border-t border-border mx-4" />}
-
-
           </div>
-        </MobileDrawer>
-      </div>
+
+          {/* Workspaces link */}
+          <button
+            type="button"
+            onClick={() => {
+              void navigate({ to: '/workspaces' });
+              setIsDrawerOpen(false);
+            }}
+            className="flex items-center gap-2 px-4 py-3 text-sm text-normal hover:bg-secondary cursor-pointer"
+          >
+            <LayoutIcon className="h-4 w-4" />
+            Workspaces
+          </button>
+
+          {/* Divider */}
+          <div className="border-t border-border mx-4" />
+
+          {/* Export link */}
+          {isSignedIn && (
+            <div className="px-4 py-3">
+              <p className="mb-2 text-xs font-medium text-low">Export</p>
+              <button
+                type="button"
+                onClick={() => {
+                  handleExportClick();
+                  setIsDrawerOpen(false);
+                }}
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm text-normal hover:bg-secondary cursor-pointer"
+              >
+                <DownloadSimpleIcon className="h-4 w-4" />
+                Export data
+              </button>
+            </div>
+          )}
+
+          {/* Divider */}
+          {isSignedIn && <div className="border-t border-border mx-4" />}
+        </div>
+      </MobileDrawer>
+    </div>
   );
 }
