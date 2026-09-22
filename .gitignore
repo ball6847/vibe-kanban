@@ -95,3 +95,8 @@ vibe-kanban-cloud/
 *.ts.net.key
 Caddyfile
 Caddyfile.dev
+
+ASSUMPTIONS.md
+check.sh
+GOAL.md
+
