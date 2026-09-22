@@ -76,6 +76,8 @@ function resolveLocalDestinationFromPath(path: string): AppDestination | null {
         ? { kind: 'workspace-vscode', hostId, workspaceId }
         : null;
     }
+    case '/_app/projects':
+      return { kind: 'projects' };
     case '/_app/projects_/$projectId': {
       const projectId = getPathParam(routeParams, 'projectId');
       return projectId ? { kind: 'project', projectId } : null;
@@ -233,6 +235,8 @@ function destinationToLocalTarget(
       } as const;
     case 'export':
       return { to: '/export' } as const;
+    case 'projects':
+      return { to: '/projects' } as const;
     case 'project':
       return {
         to: '/projects/$projectId',
@@ -341,6 +345,7 @@ export function createLocalAppNavigation(): AppNavigation {
     goToWorkspaceVsCode: (workspaceId, transition) =>
       navigateTo({ kind: 'workspace-vscode', workspaceId }, transition),
     goToExport: (transition) => navigateTo({ kind: 'export' }, transition),
+    goToProjects: (transition) => navigateTo({ kind: 'projects' }, transition),
     goToProject: (projectId, transition) =>
       navigateTo({ kind: 'project', projectId }, transition),
     goToProjectIssue: (projectId, issueId, transition) =>
