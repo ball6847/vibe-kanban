@@ -25,3 +25,34 @@ sqlite database — no login, no organizations, no remote sync.
   `projects`/`tasks` tables.
 - Frontend calls go through `localProjectsApi` / `localTasksApi` in
   `packages/web-core/src/shared/lib/api.ts`.
+
+## AppBar rail (cloud-parity navigation)
+
+The projects section of the AppBar rail lists the same local projects and works
+**without a cloud session** — no sign-in, no organizations:
+
+- Data: `SharedAppLayout.tsx` loads projects with react-query under
+  `LOCAL_PROJECTS_QUERY_KEY` (`localProjectsRailModel.ts`) and maps them with
+  `toAppBarProjects` (id, name, and a colour derived deterministically from the
+  project id — the local model has no colour column).
+- Click: a rail tile calls `appNavigation.goToProject(id)`, opening that
+  project's board.
+- Active state: `resolveActiveProjectId(destination)` feeds `activeProjectId`,
+  so the open project's tile is tinted while its board (or any project
+  sub-route) is showing; the projects index highlights nothing.
+- Create: the rail's create button calls `goToProjects()` and lands on
+  `/projects`, whose composer creates the project. The rail is not a second
+  create surface by design.
+- Freshness: `LocalProjectsList` invalidates `LOCAL_PROJECTS_QUERY_KEY` after
+  create, rename and delete, so the rail updates without a reload.
+- Cloud path preserved: `AppBar` keeps its sign-in CTA and only bypasses it when
+  `projectsEnabled` is passed (i.e. locally).
+- Colours must be full `H S% L%` triples: `AppBar` interpolates them into
+  `hsl(${color})` / `hsl(${color} / 0.2)`, and a bare hue renders the active
+  highlight transparent.
+- Navigation model: `{ kind: 'projects' }` + `goToProjects()` in
+  `packages/web-core/src/shared/lib/routes/appNavigation.ts`, implemented in
+  `packages/local-web/src/app/navigation/AppNavigation.ts` (forward →
+  `/projects`, reverse ← route id `/_app/projects`). The kind is deliberately
+  not part of `ProjectDestinationKind`, which drives kanban issue/workspace
+  resolution from a project id.

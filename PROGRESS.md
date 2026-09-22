@@ -1,6 +1,11 @@
 # PROGRESS — cloud-style local projects rail
 
-**Current state:** M7 done. All behaviour milestones verified live; M8 (quality pass) outstanding. Full gate **133 -> 141/141 green** (lint gates restored). Live behaviour not yet verified (M6/M7). Navigation model has a `projects` destination + `goToProjects()`.
+**Current state:** M1-M8 complete. `./check.sh` -> **SCORE: 141 / MAX: 141**, exit 0 (193s).
+
+All GOAL.md hard gates pass: nav model, local-web mapping, rail model, AppBar local mode, shell
+wiring, i18n (7 locales), no-cloud regression, tsc x3, lint x2 + scoped prettier, build (CI heap)
++ i18n regression + legacy guard, vitest (29 tests), live API. Rail behaviour verified live in the
+browser (M6/M7) with evidence under `.context/evidence/local-projects-rail/`. Full gate **133 -> 141/141 green** (lint gates restored). Live behaviour not yet verified (M6/M7). Navigation model has a `projects` destination + `goToProjects()`.
 `SCORE` tracked per milestone (baseline recorded below).
 
 ## Baseline (M0)
@@ -19,7 +24,7 @@
 - [x] M5 — SharedAppLayout wiring (react-query `['local-projects']`)
 - [x] M6 — live verification (evidence in `.context/evidence/local-projects-rail/`); fixed the invisible active highlight (colour must be a full `H S% L%` triple)
 - [x] M7 — refresh correctness (rail invalidates `LOCAL_PROJECTS_QUERY_KEY` on create/rename/delete; verified live)
-- [ ] M8 — quality pass (format, docs, full green)
+- [x] M8 — quality pass: docs updated, full gate green (141/141, exit 0)
 
 ## Notes
 - Previous goal (drop-remote) docs are in git history (`afc578024`).
