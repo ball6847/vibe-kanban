@@ -186,6 +186,9 @@ export function SharedAppLayout() {
               className="bg-secondary"
               style={isTauriMac() ? { minWidth: 56 } : undefined}
             />
+            {/* Row-1 filler: keeps the grid at 2x2 so the AppBar lands in
+                column 1 row 2 and the content in column 2 row 2. */}
+            <div />
             {/* Desktop AppBar sidebar. */}
             <AppBar
               projects={[]}
