@@ -23,7 +23,7 @@ use crate::{
     env::ExecutionEnv,
     executors::{
         amp::Amp, claude::ClaudeCode, codex::Codex, copilot::Copilot, cursor::CursorAgent,
-        droid::Droid, gemini::Gemini, opencode::Opencode, qwen::QwenCode,
+        droid::Droid, gemini::Gemini, opencode::Opencode, pi::Pi, qwen::QwenCode,
     },
     logs::utils::patch,
     mcp_config::McpConfig,
@@ -39,6 +39,7 @@ pub mod cursor;
 pub mod droid;
 pub mod gemini;
 pub mod opencode;
+pub mod pi;
 #[cfg(feature = "qa-mode")]
 pub mod qa_mock;
 pub mod qwen;
@@ -119,6 +120,7 @@ pub enum CodingAgent {
     QwenCode,
     Copilot,
     Droid,
+    Pi,
     #[cfg(feature = "qa-mode")]
     QaMock(QaMockExecutor),
 }
@@ -159,6 +161,17 @@ impl CodingAgent {
                 self.preconfigured_mcp(),
                 false,
             ),
+            // pi has no MCP support ("No MCP. Build CLI tools with READMEs ... or build an
+            // extension that adds MCP support.") and `pi-acp` advertises
+            // `mcpCapabilities: { http: false, sse: false }`, so this config is never written.
+            Self::Pi(_) => McpConfig::new(
+                vec!["mcpServers".to_string()],
+                serde_json::json!({
+                    "mcpServers": {}
+                }),
+                self.preconfigured_mcp(),
+                false,
+            ),
             _ => McpConfig::new(
                 vec!["mcpServers".to_string()],
                 serde_json::json!({
@@ -189,10 +202,14 @@ impl CodingAgent {
                 BaseAgentCapability::SetupHelper,
                 BaseAgentCapability::ContextUsage,
             ],
-            Self::Gemini(_) | Self::QwenCode(_) => {
-                vec![BaseAgentCapability::SessionFork]
-            }
+            // ACP executors cannot rewind: the harness has no reset path, so `reset_to_message_id` is
+            // ignored and `SESSION_FORK` must not be advertised (see the pi test below).
+            Self::Gemini(_) | Self::QwenCode(_) => vec![],
             Self::CursorAgent(_) => vec![BaseAgentCapability::SetupHelper],
+            // pi-acp advertises a terminal `authMethods` entry (`pi_terminal_login`).
+            // No `SessionFork`: the ACP harness has no rewind support, so `reset_to_message_id` is a no-op
+            // and the UI must not offer "edit from this message" for pi.
+            Self::Pi(_) => vec![BaseAgentCapability::SetupHelper],
             Self::Amp(_) | Self::Copilot(_) | Self::Droid(_) => vec![],
             #[cfg(feature = "qa-mode")]
             Self::QaMock(_) => vec![], // QA mock doesn't need special capabilities
@@ -394,6 +411,49 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
+
+    #[test]
+    fn acp_executors_do_not_claim_session_fork() {
+        let gemini = CodingAgent::Gemini(crate::executors::gemini::Gemini {
+            append_prompt: Default::default(),
+            model: None,
+            yolo: None,
+            cmd: Default::default(),
+            approvals: None,
+        });
+        let qwen = CodingAgent::QwenCode(crate::executors::qwen::QwenCode {
+            append_prompt: Default::default(),
+            model: None,
+            agent: None,
+            yolo: None,
+            cmd: Default::default(),
+            approvals: None,
+        });
+        for executor in [gemini, qwen] {
+            assert!(
+                !executor
+                    .capabilities()
+                    .contains(&BaseAgentCapability::SessionFork),
+                "ACP executor must not advertise SessionFork"
+            );
+        }
+    }
+
+    #[test]
+    fn pi_does_not_claim_session_fork() {
+        // The ACP harness cannot rewind a session, so pi must not advertise message forking.
+        let pi = CodingAgent::Pi(crate::executors::pi::Pi {
+            append_prompt: Default::default(),
+            model: None,
+            reasoning: None,
+            yolo: None,
+            cmd: Default::default(),
+            approvals: None,
+        });
+        let capabilities = pi.capabilities();
+        assert!(capabilities.contains(&BaseAgentCapability::SetupHelper));
+        assert!(!capabilities.contains(&BaseAgentCapability::SessionFork));
+    }
 
     #[test]
     fn test_cursor_agent_deserialization() {

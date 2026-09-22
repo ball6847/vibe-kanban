@@ -1,0 +1,126 @@
+---
+title: "pi"
+description: "Set up the pi coding agent through the pi-acp adapter"
+icon: https://pi.dev/logo-auto.svg
+---
+
+Vibe Kanban talks to pi through [`pi-acp`](https://github.com/svkozak/pi-acp), an
+[Agent Client Protocol](https://agentclientprotocol.com) adapter, and pins [our fork](https://github.com/ball6847/pi-acp)
+of it. Install pi, authenticate it once, and Vibe Kanban can then drive pi like any other coding agent — including choosing
+the model and thinking level from the workspace form.
+
+<Steps>
+<Step title="Install the pi coding agent">
+  ```bash
+  npm install -g @earendil-works/pi-coding-agent
+  ```
+</Step>
+
+<Step title="Install the pi-acp adapter">
+  ```bash
+  npm install -g pi-acp
+  ```
+</Step>
+
+<Step title="Authenticate pi">
+  Launch pi in your terminal and complete the provider login:
+
+  ```bash
+  pi
+  ```
+
+  pi-acp advertises this as a terminal auth method (`pi_terminal_login`), so you can also trigger it with:
+
+  ```bash
+  pi-acp --terminal-login
+  ```
+</Step>
+
+<Step title="Check the adapter resolves">
+  Vibe Kanban launches pi through `npx -y github:ball6847/pi-acp#v0.0.34`. The fork adds one thing upstream lacks: upstream
+  adapters are built on ACP SDKs that no longer route the `session/set_model` request this client sends, so a model choice
+  was dropped and pi fell back to its configured default. The fork translates that request into the session config options
+  pi does understand.
+
+  npx resolves the pinned tag on first use — measured at ~15 s, because it clones and builds the adapter — and serves it from
+  its cache afterwards (~10 s from cache to first response, measured). If you prefer a plain global install, `npm i -g pi-acp` still works
+  for everything except model selection. A typical pi turn finishes in roughly 20-30 s.
+</Step>
+
+<Step title="Start Vibe Kanban">
+  ```bash
+  npx vibe-kanban
+  ```
+
+  You can now select **pi** when creating task attempts.
+</Step>
+</Steps>
+
+## Notes
+
+- Vibe Kanban verifies the installation by looking for pi's authentication file in pi's agent directory.
+  If pi is installed but not authenticated, the agent shows as unavailable.
+- pi deliberately does not support MCP servers. Vibe Kanban therefore does not write an MCP configuration
+  for this agent, and pi does not receive Vibe Kanban's MCP tools. Use pi's own skills and extensions to add
+  capabilities.
+- Approval prompts come from pi over ACP. Keep the permission policy on **Supervised** to review tool calls,
+  or switch to **Auto** to let pi run unattended.
+- the model picker lists what `pi --list-models` reports for your authenticated providers, so it only offers models you can
+  actually run; changing `defaultModel` in your pi settings changes the default the picker preselects.
+
+## Models and thinking levels
+
+Pick a model in the workspace form and Vibe Kanban sends it with the run; pi receives it before the first prompt and stays on
+it for the session. The list comes from `pi --list-models`, which pi filters by the providers you are authenticated for, and
+each entry carries the thinking levels that model supports.
+
+Two things are worth knowing:
+
+- **Thinking levels can be clamped by pi.** Vibe Kanban requests the level you pick (it sends the model as
+  `provider/model:level`), but pi applies its own support map per model: `minimal` on `kimi-coding/k3` becomes `low`, and
+  `off` is ignored on models that always think. The executor cannot promise a level pi refuses.
+- **The adapter is ours, and that is deliberate.** pi exposes models as ACP session config options, which the protocol crate
+  this release pins cannot send. Instead of rewriting that layer, the pinned fork translates the legacy `session/set_model`
+  call the client sends into the config options pi expects, splitting the `:level` suffix off first. If you upgrade the
+  adapter, keep that behaviour — `crates/executors/src/executors/pi.rs` pins an exact tag and a test fails if it ever floats,
+  and `check.sh` fails if model ids stop being provider-relative.
+
+If you would rather not use the fork, set the model in pi itself (`pi --model ...`, or `defaultModel` in
+`~/.pi/agent/settings.json`) and point the executor at upstream with the `cmd` override; the agent then runs that default
+regardless of what the form shows.
+
+## Attachments and images
+
+Attachments are referenced from the prompt as `.vibe-attachments/<file>`, and images are never inlined into the
+ACP message — ACP transport for pi is text only. pi therefore reads attachment files itself with its own tools,
+so a vision capable model can look at an attached screenshot while a text only model can still read it as a file.
+
+Note the attachment directory lives in the **workspace root**, not inside the repository checkout: when a workspace
+runs in a worktree the file is at `<workspace>/.vibe-attachments/<file>`, one level above the project directory.
+Verified end to end — a pi workspace with an attached red image read the file and reported `red`.
+
+Because the image travels as a path, whether pi can actually *see* the picture depends on the model: in pi's
+catalogue 251 of 412 models declare image input, and the rest read the file as text only. Vibe Kanban does not add
+a vision badge to the model picker, so check the model's capabilities in your pi configuration if you plan to
+attach screenshots.
+
+## Availability
+
+Vibe Kanban reports one of three states for pi, and uses them to order the agent list:
+
+| State | When | Effect |
+| --- | --- | --- |
+| `LOGIN_DETECTED` | pi's `auth.json` exists | Preferred: agents with a login sort first (most recently authenticated first) |
+| `INSTALLATION_FOUND` | `settings.json` exists but no `auth.json` | Listed, but ranked below signed-in agents |
+| `NOT_FOUND` | neither file exists | Not offered as an available agent |
+
+So if pi is installed but not signed in yet, run `pi` (or `pi-acp --terminal-login`) once and the executor moves to
+the preferred group.
+
+## Ongoing sessions
+
+Follow-up messages keep their context, but Vibe Kanban does not resume pi's own ACP session: on every follow-up it
+opens a fresh ACP session and rebuilds the request from the locally stored conversation, then sends that as the
+prompt (`crates/executors/src/executors/acp/harness.rs`, the `fork_session` + `generate_resume_prompt` path).
+Follow-ups therefore carry the earlier conversation again, so token cost grows with the length of a session -
+starting a new workspace is cheaper than continuing a very long one.
