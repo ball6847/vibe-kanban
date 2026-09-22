@@ -96,6 +96,10 @@ vibe-kanban-cloud/
 Caddyfile
 Caddyfile.dev
 
+ASSUMPTIONS.md
+check.sh
+GOAL.md
+
 # pi loop runtime log
 .pi-loop-log.jsonl
 

@@ -3,7 +3,7 @@ import { LocalProjectKanban } from '@/pages/kanban/LocalProjectKanban';
 import { projectSearchValidator } from '@vibe/web-core/project-search';
 
 export const Route = createFileRoute(
-  '/_app/projects/$projectId_/workspaces/create/$draftId'
+  '/_app/projects_/$projectId_/workspaces/create/$draftId'
 )({
   validateSearch: projectSearchValidator,
   component: LocalProjectKanban,

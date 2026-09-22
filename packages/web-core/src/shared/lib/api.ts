@@ -8,12 +8,15 @@ import {
   ResetProcessRequest,
   EditorType,
   CreatePrApiRequest,
+  CreateProject,
   CreateTag,
+  CreateTask,
   DirectoryListResponse,
   DirectoryEntry,
   ExecutionProcess,
   ExecutionProcessRepoState,
   GitBranch,
+  Project,
   Repo,
   RepoWithTargetBranch,
   UpdateRepo,
@@ -21,7 +24,10 @@ import {
   SearchResult,
   Tag,
   TagSearchParams,
+  Task,
+  UpdateProject,
   UpdateTag,
+  UpdateTask,
   UserSystemInfo,
   McpServerQuery,
   UpdateMcpServersBody,
@@ -1697,5 +1703,69 @@ export const searchApi = {
       options
     );
     return handleApiResponse<SearchResult[]>(response);
+  },
+};
+
+// Local projects API (sqlite-backed, no auth, no remote)
+export const localProjectsApi = {
+  list: async (): Promise<Project[]> => {
+    const response = await makeRequest('/api/projects');
+    return handleApiResponse<Project[]>(response);
+  },
+
+  create: async (data: CreateProject): Promise<Project> => {
+    const response = await makeRequest('/api/projects', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return handleApiResponse<Project>(response);
+  },
+
+  remove: async (projectId: string): Promise<void> => {
+    const response = await makeRequest(`/api/projects/${projectId}`, {
+      method: 'DELETE',
+    });
+    return handleApiResponse<void>(response);
+  },
+
+  update: async (projectId: string, data: UpdateProject): Promise<Project> => {
+    const response = await makeRequest(`/api/projects/${projectId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    return handleApiResponse<Project>(response);
+  },
+};
+
+// Local tasks API (sqlite-backed, no auth, no remote)
+export const localTasksApi = {
+  list: async (projectId: string): Promise<Task[]> => {
+    const response = await makeRequest(
+      `/api/tasks?project_id=${encodeURIComponent(projectId)}`
+    );
+    return handleApiResponse<Task[]>(response);
+  },
+
+  create: async (data: CreateTask): Promise<Task> => {
+    const response = await makeRequest('/api/tasks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return handleApiResponse<Task>(response);
+  },
+
+  update: async (taskId: string, data: UpdateTask): Promise<Task> => {
+    const response = await makeRequest(`/api/tasks/${taskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    return handleApiResponse<Task>(response);
+  },
+
+  remove: async (taskId: string): Promise<void> => {
+    const response = await makeRequest(`/api/tasks/${taskId}`, {
+      method: 'DELETE',
+    });
+    return handleApiResponse<void>(response);
   },
 };

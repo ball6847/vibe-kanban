@@ -76,18 +76,18 @@ function resolveLocalDestinationFromPath(path: string): AppDestination | null {
         ? { kind: 'workspace-vscode', hostId, workspaceId }
         : null;
     }
-    case '/_app/projects/$projectId': {
+    case '/_app/projects_/$projectId': {
       const projectId = getPathParam(routeParams, 'projectId');
       return projectId ? { kind: 'project', projectId } : null;
     }
-    case '/_app/projects/$projectId_/issues/$issueId': {
+    case '/_app/projects_/$projectId_/issues/$issueId': {
       const projectId = getPathParam(routeParams, 'projectId');
       const issueId = getPathParam(routeParams, 'issueId');
       return projectId && issueId
         ? { kind: 'project-issue', projectId, issueId }
         : null;
     }
-    case '/_app/projects/$projectId_/issues/$issueId_/workspaces/$workspaceId': {
+    case '/_app/projects_/$projectId_/issues/$issueId_/workspaces/$workspaceId': {
       const projectId = getPathParam(routeParams, 'projectId');
       const issueId = getPathParam(routeParams, 'issueId');
       const workspaceId = getPathParam(routeParams, 'workspaceId');
@@ -100,7 +100,7 @@ function resolveLocalDestinationFromPath(path: string): AppDestination | null {
           }
         : null;
     }
-    case '/_app/projects/$projectId_/issues/$issueId_/hosts/$hostId/workspaces/$workspaceId': {
+    case '/_app/projects_/$projectId_/issues/$issueId_/hosts/$hostId/workspaces/$workspaceId': {
       const projectId = getPathParam(routeParams, 'projectId');
       const issueId = getPathParam(routeParams, 'issueId');
       const hostId = getPathParam(routeParams, 'hostId');
@@ -115,7 +115,7 @@ function resolveLocalDestinationFromPath(path: string): AppDestination | null {
           }
         : null;
     }
-    case '/_app/projects/$projectId_/issues/$issueId_/workspaces/create/$draftId': {
+    case '/_app/projects_/$projectId_/issues/$issueId_/workspaces/create/$draftId': {
       const projectId = getPathParam(routeParams, 'projectId');
       const issueId = getPathParam(routeParams, 'issueId');
       const draftId = getPathParam(routeParams, 'draftId');
@@ -128,7 +128,7 @@ function resolveLocalDestinationFromPath(path: string): AppDestination | null {
           }
         : null;
     }
-    case '/_app/projects/$projectId_/issues/$issueId_/hosts/$hostId/workspaces/create/$draftId': {
+    case '/_app/projects_/$projectId_/issues/$issueId_/hosts/$hostId/workspaces/create/$draftId': {
       const projectId = getPathParam(routeParams, 'projectId');
       const issueId = getPathParam(routeParams, 'issueId');
       const hostId = getPathParam(routeParams, 'hostId');
@@ -143,7 +143,7 @@ function resolveLocalDestinationFromPath(path: string): AppDestination | null {
           }
         : null;
     }
-    case '/_app/projects/$projectId_/workspaces/create/$draftId': {
+    case '/_app/projects_/$projectId_/workspaces/create/$draftId': {
       const projectId = getPathParam(routeParams, 'projectId');
       const draftId = getPathParam(routeParams, 'draftId');
       return projectId && draftId
@@ -154,7 +154,7 @@ function resolveLocalDestinationFromPath(path: string): AppDestination | null {
           }
         : null;
     }
-    case '/_app/projects/$projectId_/hosts/$hostId/workspaces/create/$draftId': {
+    case '/_app/projects_/$projectId_/hosts/$hostId/workspaces/create/$draftId': {
       const projectId = getPathParam(routeParams, 'projectId');
       const hostId = getPathParam(routeParams, 'hostId');
       const draftId = getPathParam(routeParams, 'draftId');
