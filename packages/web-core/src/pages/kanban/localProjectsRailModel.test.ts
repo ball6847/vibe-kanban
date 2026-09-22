@@ -17,7 +17,20 @@ function makeProject(id: string, name = id): Project {
   };
 }
 
-const HUES = new Set(['210', '160', '30', '280', '340', '100', '20', '250']);
+const HUES = new Set([
+  '210 70% 55%',
+  '160 65% 45%',
+  '30 80% 55%',
+  '280 60% 60%',
+  '340 70% 58%',
+  '100 50% 45%',
+  '20 75% 55%',
+  '250 65% 60%',
+]);
+
+// AppBar interpolates the value into `hsl(${color})` and `hsl(${color} / 0.2)`;
+// anything that is not a full H S% L% triple renders transparent when active.
+const HSL_TRIPLE = /^\d+ \d+% \d+%$/;
 
 describe('toAppBarProjects', () => {
   it('maps id and name and assigns a palette hue', () => {
@@ -32,6 +45,7 @@ describe('toAppBarProjects', () => {
     ]);
     for (const project of result) {
       expect(HUES.has(project.color)).toBe(true);
+      expect(project.color).toMatch(HSL_TRIPLE);
     }
   });
 

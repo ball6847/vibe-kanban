@@ -3,29 +3,31 @@ import type { Project } from 'shared/types';
 import type { AppDestination } from '@/shared/lib/routes/appNavigation';
 
 /**
- * Hues handed out to rail project tiles. `AppBar` renders the value as
- * `hsl(${color})`, so these are hue strings, not hex colours. Local projects
- * carry no colour of their own, so one is derived deterministically from the id.
+ * Colours handed out to rail project tiles. `AppBar` renders the value inside
+ * `hsl(${color})` and `hsl(${color} / 0.2)`, so each entry must be a full
+ * `H S% L%` triple — a bare hue makes the second template invalid and the
+ * active highlight renders transparent. Local projects carry no colour of
+ * their own, so one is derived deterministically from the id.
  */
-const PROJECT_COLOR_HUES = [
-  '210',
-  '160',
-  '30',
-  '280',
-  '340',
-  '100',
-  '20',
-  '250',
+const PROJECT_COLORS = [
+  '210 70% 55%',
+  '160 65% 45%',
+  '30 80% 55%',
+  '280 60% 60%',
+  '340 70% 58%',
+  '100 50% 45%',
+  '20 75% 55%',
+  '250 65% 60%',
 ] as const;
 
-const FALLBACK_HUE = '210';
+const FALLBACK_COLOR = '210 70% 55%';
 
 function colorForProjectId(projectId: string): string {
   let hash = 0;
   for (let index = 0; index < projectId.length; index += 1) {
     hash = (hash * 31 + projectId.charCodeAt(index)) % 1000003;
   }
-  return PROJECT_COLOR_HUES[hash % PROJECT_COLOR_HUES.length] ?? FALLBACK_HUE;
+  return PROJECT_COLORS[hash % PROJECT_COLORS.length] ?? FALLBACK_COLOR;
 }
 
 /** Maps local projects (REST shape) onto the rail's project tile shape. */

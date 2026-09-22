@@ -1,6 +1,6 @@
 # PROGRESS — cloud-style local projects rail
 
-**Current state:** M5 done. Full gate **133 -> 141/141 green** (lint gates restored). Live behaviour not yet verified (M6/M7). Navigation model has a `projects` destination + `goToProjects()`.
+**Current state:** M6 done. Full gate **133 -> 141/141 green** (lint gates restored). Live behaviour not yet verified (M6/M7). Navigation model has a `projects` destination + `goToProjects()`.
 `SCORE` tracked per milestone (baseline recorded below).
 
 ## Baseline (M0)
@@ -17,7 +17,7 @@
 - [x] M3 — pure rail model + vitest (28 tests / 3 files)
 - [x] M4 — AppBar local mode + i18n key (all 7 locales)
 - [x] M5 — SharedAppLayout wiring (react-query `['local-projects']`)
-- [ ] M6 — live verification (evidence)
+- [x] M6 — live verification (evidence in `.context/evidence/local-projects-rail/`); fixed the invisible active highlight (colour must be a full `H S% L%` triple)
 - [ ] M7 — refresh correctness
 - [ ] M8 — quality pass (format, docs, full green)
 
