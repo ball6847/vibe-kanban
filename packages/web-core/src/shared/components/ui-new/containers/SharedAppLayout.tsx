@@ -33,6 +33,7 @@ import { WorkspacesSidebarReopenTag } from '@vibe/ui/components/WorkspacesSideba
 import { CloudShutdownExportBanner } from '@/shared/components/CloudShutdownExportBanner';
 import { localProjectsApi } from '@/shared/lib/api';
 import {
+  LOCAL_PROJECTS_QUERY_KEY,
   resolveActiveProjectId,
   toAppBarProjects,
 } from '@/pages/kanban/localProjectsRailModel';
@@ -104,7 +105,7 @@ export function SharedAppLayout() {
     !isMobile && isWorkspacesActive && !isLeftSidebarVisible;
   const activeProjectId = resolveActiveProjectId(currentDestination);
   const { data: localProjects = [], isLoading: isLoadingProjects } = useQuery({
-    queryKey: ['local-projects'],
+    queryKey: LOCAL_PROJECTS_QUERY_KEY,
     queryFn: localProjectsApi.list,
   });
   const activeHostId =

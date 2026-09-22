@@ -30,6 +30,9 @@ function colorForProjectId(projectId: string): string {
   return PROJECT_COLORS[hash % PROJECT_COLORS.length] ?? FALLBACK_COLOR;
 }
 
+/** Query key for the rail's local-projects cache; shared by every mutation site. */
+export const LOCAL_PROJECTS_QUERY_KEY = ['local-projects'] as const;
+
 /** Maps local projects (REST shape) onto the rail's project tile shape. */
 export function toAppBarProjects(projects: Project[]): AppBarProject[] {
   return projects.map((project) => ({

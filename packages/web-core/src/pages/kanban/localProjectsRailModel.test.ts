@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Project } from 'shared/types';
 import type { AppDestination } from '@/shared/lib/routes/appNavigation';
 import {
+  LOCAL_PROJECTS_QUERY_KEY,
   resolveActiveProjectId,
   toAppBarProjects,
 } from './localProjectsRailModel';
@@ -31,6 +32,12 @@ const HUES = new Set([
 // AppBar interpolates the value into `hsl(${color})` and `hsl(${color} / 0.2)`;
 // anything that is not a full H S% L% triple renders transparent when active.
 const HSL_TRIPLE = /^\d+ \d+% \d+%$/;
+
+describe('LOCAL_PROJECTS_QUERY_KEY', () => {
+  it('is a stable key shared by the rail and the list page', () => {
+    expect(LOCAL_PROJECTS_QUERY_KEY).toEqual(['local-projects']);
+  });
+});
 
 describe('toAppBarProjects', () => {
   it('maps id and name and assigns a palette hue', () => {

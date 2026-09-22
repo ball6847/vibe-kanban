@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { Project } from 'shared/types';
 import { localProjectsApi } from '@/shared/lib/api';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { usePageTitle } from '@/shared/hooks/usePageTitle';
+import { LOCAL_PROJECTS_QUERY_KEY } from './localProjectsRailModel';
 
 export function LocalProjectsList() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -16,6 +18,13 @@ export function LocalProjectsList() {
   const [editingName, setEditingName] = useState('');
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const appNavigation = useAppNavigation();
+  const queryClient = useQueryClient();
+
+  // The rail reads the same projects through the shared query key, so every
+  // local mutation must invalidate it or the rail keeps a stale list.
+  const refreshRail = () => {
+    void queryClient.invalidateQueries({ queryKey: LOCAL_PROJECTS_QUERY_KEY });
+  };
 
   usePageTitle('Projects');
 
@@ -48,6 +57,7 @@ export function LocalProjectsList() {
     try {
       const created = await localProjectsApi.create({ name });
       setProjects((prev) => [created, ...prev]);
+      refreshRail();
       setNewProjectName('');
       setActionError(null);
     } catch (err: unknown) {
@@ -70,6 +80,7 @@ export function LocalProjectsList() {
       setProjects((prev) =>
         prev.map((p) => (p.id === project.id ? updated : p))
       );
+      refreshRail();
       setActionError(null);
     } catch (err: unknown) {
       setActionError(
@@ -86,6 +97,7 @@ export function LocalProjectsList() {
     try {
       await localProjectsApi.remove(projectId);
       setProjects((prev) => prev.filter((p) => p.id !== projectId));
+      refreshRail();
       setActionError(null);
     } catch (err: unknown) {
       setActionError(
