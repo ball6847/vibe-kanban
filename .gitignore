@@ -95,3 +95,13 @@ vibe-kanban-cloud/
 *.ts.net.key
 Caddyfile
 Caddyfile.dev
+
+ASSUMPTIONS.md
+check.sh
+GOAL.md
+
+# pi loop runtime log
+.pi-loop-log.jsonl
+
+# local check trend log
+notes/check-timings.tsv

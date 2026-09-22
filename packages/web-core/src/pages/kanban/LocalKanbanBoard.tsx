@@ -1,0 +1,344 @@
+import { useEffect, useState } from 'react';
+import type { Task } from 'shared/types';
+import { localProjectsApi, localTasksApi } from '@/shared/lib/api';
+import { usePageTitle } from '@/shared/hooks/usePageTitle';
+import {
+  COLUMNS,
+  STATUS_LABEL,
+  groupTasksByColumn,
+  stepStatus,
+} from './localKanbanModel';
+
+interface LocalKanbanBoardProps {
+  projectId: string;
+}
+
+export function LocalKanbanBoard({ projectId }: LocalKanbanBoardProps) {
+  const [projectName, setProjectName] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [editingDescription, setEditingDescription] = useState('');
+
+  usePageTitle(projectName, 'Projects');
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoading(true);
+    setError(null);
+    Promise.all([localProjectsApi.list(), localTasksApi.list(projectId)])
+      .then(([projects, projectTasks]) => {
+        if (cancelled) return;
+        setProjectName(projects.find((p) => p.id === projectId)?.name ?? null);
+        setTasks(projectTasks);
+        setIsLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : 'Failed to load board');
+        setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, reloadToken]);
+
+  const tasksByColumn = groupTasksByColumn(tasks);
+
+  const handleCreate = async () => {
+    const title = newTaskTitle.trim();
+    if (!title || isCreating) return;
+    setIsCreating(true);
+    try {
+      const created = await localTasksApi.create({
+        project_id: projectId,
+        title,
+        description: null,
+      });
+      setTasks((prev) => [...prev, created]);
+      setNewTaskTitle('');
+      setActionError(null);
+    } catch (err: unknown) {
+      setActionError(
+        err instanceof Error ? err.message : 'Failed to create task'
+      );
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleMove = async (task: Task, direction: -1 | 1) => {
+    const next = stepStatus(task.status, direction);
+    if (!next || busyTaskId) return;
+    setBusyTaskId(task.id);
+    try {
+      const updated = await localTasksApi.update(task.id, {
+        title: null,
+        description: null,
+        status: next,
+      });
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+      setActionError(null);
+    } catch (err: unknown) {
+      setActionError(
+        err instanceof Error ? err.message : 'Failed to move task'
+      );
+    } finally {
+      setBusyTaskId(null);
+    }
+  };
+
+  const startEditing = (task: Task) => {
+    setEditingTaskId(task.id);
+    setEditingTitle(task.title);
+    setEditingDescription(task.description ?? '');
+  };
+
+  const handleSaveEdit = async (task: Task) => {
+    if (editingTaskId !== task.id) return;
+    const title = editingTitle.trim();
+    const description = editingDescription.trim();
+    setEditingTaskId(null);
+    if (!title || busyTaskId) return;
+    if (title === task.title && description === (task.description ?? ''))
+      return;
+    setBusyTaskId(task.id);
+    try {
+      const updated = await localTasksApi.update(task.id, {
+        title,
+        description,
+        status: null,
+      });
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+      setActionError(null);
+    } catch (err: unknown) {
+      setActionError(
+        err instanceof Error ? err.message : 'Failed to save task'
+      );
+    } finally {
+      setBusyTaskId(null);
+    }
+  };
+
+  const handleDelete = async (taskId: string) => {
+    if (busyTaskId) return;
+    setBusyTaskId(taskId);
+    try {
+      await localTasksApi.remove(taskId);
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      setActionError(null);
+    } catch (err: unknown) {
+      setActionError(
+        err instanceof Error ? err.message : 'Failed to delete task'
+      );
+    } finally {
+      setBusyTaskId(null);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <p className="text-low">Loading board…</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-full w-full items-center justify-center p-base">
+        <div className="flex flex-col items-center gap-half">
+          <p className="text-low">Could not load tasks: {error}</p>
+          <button
+            type="button"
+            onClick={() => setReloadToken((t) => t + 1)}
+            className="rounded-sm border border-border bg-secondary px-base py-half text-sm text-normal"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (projectName === null) {
+    return (
+      <div className="flex h-full w-full items-center justify-center p-base">
+        <p className="text-low">Project not found</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full w-full flex-col bg-primary">
+      <div className="flex shrink-0 items-baseline justify-between gap-half px-base pt-base">
+        <h1 className="truncate text-lg font-semibold text-high">
+          {projectName}
+        </h1>
+        <span className="shrink-0 text-xs text-low">
+          {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'}
+        </span>
+      </div>
+      <div className="flex shrink-0 gap-half p-base pb-0">
+        <input
+          aria-label="New task title"
+          value={newTaskTitle}
+          onChange={(e) => setNewTaskTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void handleCreate();
+          }}
+          placeholder="New task…"
+          className="min-w-0 flex-1 rounded-sm border border-border bg-secondary px-half py-half text-sm text-normal placeholder:text-low"
+        />
+        <button
+          type="button"
+          onClick={() => void handleCreate()}
+          disabled={!newTaskTitle.trim() || isCreating}
+          className="shrink-0 rounded-sm bg-brand px-base py-half text-sm font-medium text-on-brand disabled:opacity-50"
+        >
+          Add
+        </button>
+      </div>
+      {actionError ? (
+        <div className="flex shrink-0 items-center justify-between gap-half px-base pt-half">
+          <p role="alert" className="truncate text-xs text-low">
+            {actionError}
+          </p>
+          <button
+            type="button"
+            aria-label="Dismiss error"
+            onClick={() => setActionError(null)}
+            className="shrink-0 rounded-sm px-half text-xs text-low"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
+      <div className="flex min-h-0 flex-1 snap-x snap-mandatory gap-base overflow-x-auto p-base sm:snap-none">
+        {COLUMNS.map((column) => {
+          const columnTasks = column.status.flatMap(
+            (status) => tasksByColumn.get(status) ?? []
+          );
+          return (
+            <section
+              key={column.label}
+              aria-label={column.label}
+              className="flex w-[85vw] shrink-0 snap-center flex-col rounded-sm border border-border bg-secondary sm:w-72"
+            >
+              <header className="flex items-center justify-between px-base py-half">
+                <h2 className="text-sm font-semibold text-high">
+                  {column.label}
+                </h2>
+                <span className="text-xs text-low">{columnTasks.length}</span>
+              </header>
+              <div className="flex min-h-0 flex-1 flex-col gap-half overflow-y-auto p-half">
+                {columnTasks.length === 0 ? (
+                  <p className="px-half py-base text-center text-xs text-low">
+                    No tasks
+                  </p>
+                ) : (
+                  columnTasks.map((task) => {
+                    const atStart =
+                      task.status === 'todo' || busyTaskId === task.id;
+                    const atEnd =
+                      task.status === 'done' ||
+                      task.status === 'cancelled' ||
+                      busyTaskId === task.id;
+                    return (
+                      <article
+                        key={task.id}
+                        className="rounded-sm border border-border bg-primary p-half"
+                      >
+                        {editingTaskId === task.id ? (
+                          <div className="flex flex-col gap-half">
+                            <input
+                              aria-label="Edit task title"
+                              autoFocus
+                              value={editingTitle}
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter')
+                                  void handleSaveEdit(task);
+                                if (e.key === 'Escape') setEditingTaskId(null);
+                              }}
+                              className="w-full rounded-sm border border-border bg-secondary px-half py-half text-sm text-normal"
+                            />
+                            <textarea
+                              aria-label="Edit task description"
+                              value={editingDescription}
+                              onChange={(e) =>
+                                setEditingDescription(e.target.value)
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') setEditingTaskId(null);
+                              }}
+                              onBlur={() => void handleSaveEdit(task)}
+                              rows={3}
+                              placeholder="Description (optional)"
+                              className="w-full rounded-sm border border-border bg-secondary px-half py-half text-xs text-normal placeholder:text-low"
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            className="cursor-text"
+                            onDoubleClick={() => startEditing(task)}
+                            title="Double-click to edit"
+                          >
+                            <p className="text-sm text-normal">{task.title}</p>
+                            {task.description ? (
+                              <p className="mt-half line-clamp-3 text-xs text-low">
+                                {task.description}
+                              </p>
+                            ) : null}
+                          </div>
+                        )}
+                        <div className="mt-half flex items-center justify-end gap-half">
+                          <button
+                            type="button"
+                            aria-label={`Move ${task.title} back`}
+                            title={`Move back from ${STATUS_LABEL[task.status]}`}
+                            disabled={atStart}
+                            onClick={() => void handleMove(task, -1)}
+                            className="rounded-sm px-half text-xs text-low disabled:opacity-30"
+                          >
+                            ‹
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Move ${task.title} forward`}
+                            title={`Move forward from ${STATUS_LABEL[task.status]}`}
+                            disabled={atEnd}
+                            onClick={() => void handleMove(task, 1)}
+                            className="rounded-sm px-half text-xs text-low disabled:opacity-30"
+                          >
+                            ›
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Delete ${task.title}`}
+                            disabled={busyTaskId === task.id}
+                            onClick={() => void handleDelete(task.id)}
+                            className="rounded-sm px-half text-xs text-low disabled:opacity-30"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })
+                )}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
