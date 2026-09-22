@@ -22,7 +22,6 @@ pub mod organizations;
 pub mod preview;
 pub mod relay_auth;
 pub mod releases;
-pub mod remote;
 pub mod repo;
 pub mod scratch;
 pub mod search;
@@ -54,7 +53,6 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .merge(sessions::router(&deployment))
         .merge(terminal::router())
         .route("/ssh-session", get(ssh_session::ssh_session_ws))
-        .nest("/remote", remote::router())
         .merge(webrtc::router())
         .nest("/attachments", attachments::routes())
         .layer(axum::middleware::from_fn_with_state(

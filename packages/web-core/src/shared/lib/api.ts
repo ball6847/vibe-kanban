@@ -45,18 +45,6 @@ import {
   GhCliSetupError,
   RunScriptError,
   StatusResponse,
-  CreateOrganizationRequest,
-  CreateOrganizationResponse,
-  ListOrganizationsResponse,
-  OrganizationMemberWithProfile,
-  ListMembersResponse,
-  CreateInvitationRequest,
-  CreateInvitationResponse,
-  RevokeInvitationRequest,
-  UpdateMemberRoleRequest,
-  UpdateMemberRoleResponse,
-  Invitation,
-  ListInvitationsResponse,
   OpenEditorResponse,
   OpenEditorRequest,
   PrError,
@@ -81,7 +69,6 @@ import {
   GitRemote,
   ListPrsError,
   PullRequestDetail,
-  LinkPrToIssueRequest,
   AttachExistingPrRequest,
   AttachPrResponse,
   CreateWorkspaceFromPrBody,
@@ -101,11 +88,9 @@ import {
   OpenRemoteEditorResponse,
   ProfileResponse,
 } from 'shared/types';
-import type { Project as RemoteProject } from 'shared/remote-types';
 import type { WorkspaceWithSession } from '@/shared/types/attempt';
 import { createWorkspaceWithSession } from '@/shared/types/attempt';
 import { resolveHostRequestScope } from '@/shared/lib/hostRequestScope';
-import { makeRequest as makeRemoteRequest } from '@/shared/lib/remoteApi';
 import { makeLocalApiRequest } from '@/shared/lib/localApiTransport';
 
 export class ApiError<E = unknown> extends Error {
@@ -178,10 +163,6 @@ export type Err<E> = { success: false; error: E | undefined; message?: string };
 
 // Result type for endpoints that need typed errors
 export type Result<T, E> = Ok<T> | Err<E>;
-
-type ListRemoteProjectsResponse = {
-  projects: RemoteProject[];
-};
 
 export type OrganizationBillingStatus =
   | 'free'
@@ -467,25 +448,6 @@ export const workspacesApi = {
     const queryString = params.toString();
     const url = `/api/workspaces/${workspaceId}${queryString ? `?${queryString}` : ''}`;
     const response = await makeRequest(url, {
-      method: 'DELETE',
-    });
-    return handleApiResponse<void>(response);
-  },
-
-  linkToIssue: async (
-    workspaceId: string,
-    projectId: string,
-    issueId: string
-  ): Promise<void> => {
-    const response = await makeRequest(`/api/workspaces/${workspaceId}/links`, {
-      method: 'POST',
-      body: JSON.stringify({ project_id: projectId, issue_id: issueId }),
-    });
-    return handleApiResponse<void>(response);
-  },
-
-  unlinkFromIssue: async (workspaceId: string): Promise<void> => {
-    const response = await makeRequest(`/api/workspaces/${workspaceId}/links`, {
       method: 'DELETE',
     });
     return handleApiResponse<void>(response);
@@ -976,14 +938,6 @@ export const issuePrsApi = {
     );
     return handleApiResponseAsResult<PullRequestDetail, ListPrsError>(response);
   },
-
-  linkToIssue: async (data: LinkPrToIssueRequest): Promise<void> => {
-    const response = await makeRequest('/api/remote/pull-requests/link', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    await handleApiResponse<void>(response);
-  },
 };
 
 // Config APIs (backwards compatible)
@@ -1320,171 +1274,6 @@ export async function getCachedToken(): Promise<string | null> {
   const { tokenManager } = await import('@/shared/lib/auth/tokenManager');
   return tokenManager.getToken();
 }
-
-const handleRemoteResponse = async <T>(response: Response): Promise<T> => {
-  if (!response.ok) {
-    let errorMessage = `Request failed with status ${response.status}`;
-
-    try {
-      const body = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
-      errorMessage = body.error || body.message || errorMessage;
-    } catch {
-      errorMessage = response.statusText || errorMessage;
-    }
-
-    throw new ApiError(errorMessage, response.status, response);
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json() as Promise<T>;
-};
-
-// Organizations API
-export const organizationsApi = {
-  getMembers: async (
-    orgId: string
-  ): Promise<OrganizationMemberWithProfile[]> => {
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/members`
-    );
-    const result = await handleRemoteResponse<ListMembersResponse>(response);
-    return result.members;
-  },
-
-  getUserOrganizations: async (): Promise<ListOrganizationsResponse> => {
-    const response = await makeRemoteRequest('/v1/organizations');
-    return handleRemoteResponse<ListOrganizationsResponse>(response);
-  },
-
-  createOrganization: async (
-    data: CreateOrganizationRequest
-  ): Promise<CreateOrganizationResponse> => {
-    const response = await makeRemoteRequest('/v1/organizations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return handleRemoteResponse<CreateOrganizationResponse>(response);
-  },
-
-  createInvitation: async (
-    orgId: string,
-    data: CreateInvitationRequest
-  ): Promise<CreateInvitationResponse> => {
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/invitations`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      }
-    );
-    return handleRemoteResponse<CreateInvitationResponse>(response);
-  },
-
-  removeMember: async (orgId: string, userId: string): Promise<void> => {
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/members/${userId}`,
-      {
-        method: 'DELETE',
-      }
-    );
-    return handleRemoteResponse<void>(response);
-  },
-
-  updateMemberRole: async (
-    orgId: string,
-    userId: string,
-    data: UpdateMemberRoleRequest
-  ): Promise<UpdateMemberRoleResponse> => {
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/members/${userId}/role`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      }
-    );
-    return handleRemoteResponse<UpdateMemberRoleResponse>(response);
-  },
-
-  listInvitations: async (orgId: string): Promise<Invitation[]> => {
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/invitations`
-    );
-    const result =
-      await handleRemoteResponse<ListInvitationsResponse>(response);
-    return result.invitations;
-  },
-
-  revokeInvitation: async (
-    orgId: string,
-    invitationId: string
-  ): Promise<void> => {
-    const body: RevokeInvitationRequest = { invitation_id: invitationId };
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/invitations/revoke`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }
-    );
-    return handleRemoteResponse<void>(response);
-  },
-
-  getBillingStatus: async (
-    orgId: string
-  ): Promise<OrganizationBillingStatusResponse> => {
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/billing`
-    );
-    return handleRemoteResponse<OrganizationBillingStatusResponse>(response);
-  },
-
-  createPortalSession: async (
-    orgId: string,
-    returnUrl: string
-  ): Promise<{ url: string }> => {
-    const response = await makeRemoteRequest(
-      `/v1/organizations/${orgId}/billing/portal`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          return_url: returnUrl,
-        }),
-      }
-    );
-    return handleRemoteResponse<{ url: string }>(response);
-  },
-
-  deleteOrganization: async (orgId: string): Promise<void> => {
-    const response = await makeRemoteRequest(`/v1/organizations/${orgId}`, {
-      method: 'DELETE',
-    });
-    return handleRemoteResponse<void>(response);
-  },
-};
-
-export const remoteProjectsApi = {
-  listByOrganization: async (
-    organizationId: string
-  ): Promise<RemoteProject[]> => {
-    const response = await makeRequest(
-      `/api/remote/projects?organization_id=${encodeURIComponent(organizationId)}`
-    );
-    const result =
-      await handleApiResponse<ListRemoteProjectsResponse>(response);
-    return result.projects;
-  },
-};
 
 // Scratch API
 export const scratchApi = {

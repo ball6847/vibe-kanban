@@ -172,7 +172,7 @@ function SettingsDialogContent({
     }
 
     if (hostsResolved && availableHosts.length === 0) {
-      return 'organizations';
+      return 'general';
     }
 
     return 'general';
@@ -222,7 +222,7 @@ function SettingsDialogContent({
       isHostSpecificSettingsSection(activeSection) &&
       availableHosts.length === 0
     ) {
-      setActiveSection('organizations');
+      setActiveSection('general');
     }
   }, [activeSection, availableHosts.length, hostsResolved]);
 

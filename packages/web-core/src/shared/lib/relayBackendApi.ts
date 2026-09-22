@@ -1,4 +1,3 @@
-import type { CreateRemoteSessionResponse } from 'shared/remote-types';
 import type {
   FinishSpake2EnrollmentRequest,
   FinishSpake2EnrollmentResponse,
@@ -15,11 +14,9 @@ export interface RelaySigningSessionRefreshPayload {
   signature_b64: string;
 }
 
-const BUILD_TIME_API_BASE = import.meta.env.VITE_VK_SHARED_API_BASE || '';
 const BUILD_TIME_RELAY_API_BASE = import.meta.env.VITE_RELAY_API_BASE_URL || '';
-const USE_REMOTE_API_BASE_FALLBACK = !BUILD_TIME_RELAY_API_BASE;
 
-let _relayApiBase: string = BUILD_TIME_RELAY_API_BASE || BUILD_TIME_API_BASE;
+let _relayApiBase: string = BUILD_TIME_RELAY_API_BASE;
 
 export function setRelayApiBase(base: string | null | undefined) {
   if (base) {
@@ -29,30 +26,6 @@ export function setRelayApiBase(base: string | null | undefined) {
 
 export function getRelayApiUrl(): string {
   return _relayApiBase;
-}
-
-export function syncRelayApiBaseWithRemote(base: string | null | undefined) {
-  if (USE_REMOTE_API_BASE_FALLBACK) {
-    setRelayApiBase(base);
-  }
-}
-
-export async function createRemoteSession(
-  hostId: string
-): Promise<CreateRemoteSessionResponse> {
-  const response = await makeAuthenticatedRequest(
-    getRelayApiUrl(),
-    `/v1/relay/create/${hostId}`,
-    { method: 'POST' }
-  );
-  if (!response.ok) {
-    throw await parseErrorResponse(
-      response,
-      'Failed to create relay session auth code'
-    );
-  }
-
-  return (await response.json()) as CreateRemoteSessionResponse;
 }
 
 export function buildRemoteSessionBaseUrl(
@@ -162,21 +135,6 @@ async function makeAuthenticatedRequest(
   }
 
   return response;
-}
-
-async function parseErrorResponse(
-  response: Response,
-  fallbackMessage: string
-): Promise<Error> {
-  try {
-    const body = await response.json();
-    const message = body.error || body.message || fallbackMessage;
-    return new Error(`${message} (${response.status} ${response.statusText})`);
-  } catch {
-    return new Error(
-      `${fallbackMessage} (${response.status} ${response.statusText})`
-    );
-  }
 }
 
 interface LocalApiSuccess<T> {

@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { create } from 'zustand';
-import type { IssuePriority } from 'shared/remote-types';
+import type { IssuePriority } from '@/shared/types/issuePriority';
 
 export interface ProjectIssueCreateOptions {
   statusId?: string;

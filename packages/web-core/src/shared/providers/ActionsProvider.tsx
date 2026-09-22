@@ -1,5 +1,4 @@
 import {
-  useContext,
   useCallback,
   useMemo,
   useState,
@@ -26,8 +25,6 @@ import {
   getActionLabel,
 } from '@/shared/types/actions';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
-import { UserContext } from '@/shared/hooks/useUserContext';
-import { ProjectContext } from '@/shared/hooks/useProjectContext';
 import { useDevServer } from '@/shared/hooks/useDevServer';
 import { useLogsPanel } from '@/shared/hooks/useLogsPanel';
 import { useLogStream } from '@/shared/hooks/useLogStream';
@@ -50,9 +47,6 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
   // Get workspace context (ActionsProvider is nested inside WorkspaceProvider)
   const { selectWorkspace, activeWorkspaces, workspaceId, workspace } =
     useWorkspaceContext();
-  // Get remote workspaces (optional — not available on all routes)
-  const userCtx = useContext(UserContext);
-  const projectCtx = useContext(ProjectContext);
   // Get dev server state
   const { start, stop, runningDevServers } = useDevServer(workspaceId);
 
@@ -106,98 +100,6 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
     return null;
   }, [logsPanelContent, processLogs]);
 
-  // Open status selection dialog (uses dynamic import to avoid circular deps)
-  const openStatusSelection = useCallback(
-    async (projectId: string, issueIds: string[]) => {
-      const { ProjectSelectionDialog } = await import(
-        '@/shared/dialogs/command-bar/selections/ProjectSelectionDialog'
-      );
-      await ProjectSelectionDialog.show({
-        projectId,
-        selection: { type: 'status', issueIds },
-      });
-    },
-    []
-  );
-
-  // Open priority selection dialog (uses dynamic import to avoid circular deps)
-  const openPrioritySelection = useCallback(
-    async (projectId: string, issueIds: string[]) => {
-      const { ProjectSelectionDialog } = await import(
-        '@/shared/dialogs/command-bar/selections/ProjectSelectionDialog'
-      );
-      await ProjectSelectionDialog.show({
-        projectId,
-        selection: { type: 'priority', issueIds },
-      });
-    },
-    []
-  );
-
-  // Open assignee selection dialog (uses dynamic import to avoid circular deps)
-  const openAssigneeSelection = useCallback(
-    async (projectId: string, issueIds: string[], isCreateMode = false) => {
-      const { AssigneeSelectionDialog } = await import(
-        '@/shared/dialogs/kanban/AssigneeSelectionDialog'
-      );
-      await AssigneeSelectionDialog.show({ projectId, issueIds, isCreateMode });
-    },
-    []
-  );
-
-  // Open sub-issue selection dialog (uses dynamic import to avoid circular deps)
-  const openSubIssueSelection = useCallback(
-    async (
-      projectId: string,
-      parentIssueId: string,
-      mode: 'addChild' | 'setParent' = 'addChild'
-    ) => {
-      const { ProjectSelectionDialog } = await import(
-        '@/shared/dialogs/command-bar/selections/ProjectSelectionDialog'
-      );
-      return (await ProjectSelectionDialog.show({
-        projectId,
-        selection: { type: 'subIssue', parentIssueId, mode },
-      })) as { type: string } | undefined;
-    },
-    []
-  );
-
-  // Open workspace selection dialog (uses dynamic import to avoid circular deps)
-  const openWorkspaceSelection = useCallback(
-    async (projectId: string, issueId: string) => {
-      const { WorkspaceSelectionDialog } = await import(
-        '@/shared/dialogs/command-bar/WorkspaceSelectionDialog'
-      );
-      await WorkspaceSelectionDialog.show({ projectId, issueId });
-    },
-    []
-  );
-
-  // Open relationship selection dialog (uses dynamic import to avoid circular deps)
-  const openRelationshipSelection = useCallback(
-    async (
-      projectId: string,
-      issueId: string,
-      relationshipType: 'blocking' | 'related' | 'has_duplicate',
-      direction: 'forward' | 'reverse'
-    ) => {
-      const { ProjectSelectionDialog } = await import(
-        '@/shared/dialogs/command-bar/selections/ProjectSelectionDialog'
-      );
-      await ProjectSelectionDialog.show({
-        projectId,
-        selection: {
-          type: 'relationship',
-          issueId,
-          relationshipType,
-          direction,
-        },
-      });
-    },
-    []
-  );
-
   // Build executor context from hooks
   const executorContext = useMemo<ActionExecutorContext>(() => {
     return {
@@ -214,25 +116,11 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
       stopDevServer: stop,
       currentLogs,
       logsPanelContent,
-      openStatusSelection,
-      openPrioritySelection,
-      openAssigneeSelection,
-      openSubIssueSelection,
-      openWorkspaceSelection,
-      openRelationshipSelection,
       navigateToCreateIssue,
       defaultCreateStatusId,
       kanbanOrgId: selectedOrgId ?? undefined,
       kanbanProjectId: projectId,
       projectMutations: projectMutations ?? undefined,
-      remoteWorkspaces: (() => {
-        const userWs = userCtx?.workspaces ?? [];
-        const projectWs = projectCtx?.workspaces ?? [];
-        if (projectWs.length === 0) return userWs;
-        if (userWs.length === 0) return projectWs;
-        const seen = new Set(userWs.map((w) => w.id));
-        return [...userWs, ...projectWs.filter((w) => !seen.has(w.id))];
-      })(),
     };
   }, [
     appRuntime,
@@ -247,19 +135,11 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
     stop,
     currentLogs,
     logsPanelContent,
-    openStatusSelection,
-    openPrioritySelection,
-    openAssigneeSelection,
-    openSubIssueSelection,
-    openWorkspaceSelection,
-    openRelationshipSelection,
     navigateToCreateIssue,
     defaultCreateStatusId,
     selectedOrgId,
     projectId,
     projectMutations,
-    userCtx?.workspaces,
-    projectCtx?.workspaces,
   ]);
 
   // Main action executor with centralized target validation and error handling
@@ -340,12 +220,6 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
     () => ({
       executeAction,
       getLabel,
-      openStatusSelection,
-      openPrioritySelection,
-      openAssigneeSelection,
-      openSubIssueSelection,
-      openWorkspaceSelection,
-      openRelationshipSelection,
       setDefaultCreateStatusId,
       registerProjectMutations,
       executorContext,
@@ -353,12 +227,6 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
     [
       executeAction,
       getLabel,
-      openStatusSelection,
-      openPrioritySelection,
-      openAssigneeSelection,
-      openSubIssueSelection,
-      openWorkspaceSelection,
-      openRelationshipSelection,
       registerProjectMutations,
       executorContext,
     ]

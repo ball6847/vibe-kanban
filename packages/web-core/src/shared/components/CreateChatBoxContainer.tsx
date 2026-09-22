@@ -242,16 +242,8 @@ export function CreateChatBoxContainer({
         : null,
       attachment_ids: getAttachmentIds(),
     };
-    const linkToIssue = linkedIssue
-      ? {
-          remoteProjectId: linkedIssue.remoteProjectId,
-          issueId: linkedIssue.issueId,
-        }
-      : undefined;
-
     const result = await createWorkspace.mutateAsync({
       data,
-      linkToIssue,
     });
 
     if (result.workspace) {

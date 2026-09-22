@@ -13,8 +13,6 @@ import { useTheme } from '@/shared/hooks/useTheme';
 import { OAuthSignInButton } from '@vibe/ui/components/OAuthButtons';
 import { PrimaryButton } from '@vibe/ui/components/PrimaryButton';
 import { oauthApi, type AuthMethodsResponse } from '@/shared/lib/api';
-import { getFirstProjectDestination } from '@/shared/lib/firstProjectDestination';
-import { useOrganizationStore } from '@/shared/stores/useOrganizationStore';
 import { isTauriApp } from '@/shared/lib/platform';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 
@@ -77,7 +75,6 @@ export function OnboardingSignInPage() {
   const { theme } = useTheme();
   const posthog = usePostHog();
   const { config, loginStatus, loading, updateAndSaveConfig } = useUserSystem();
-  const setSelectedOrgId = useOrganizationStore((s) => s.setSelectedOrgId);
 
   const [showComparison, setShowComparison] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -142,20 +139,7 @@ export function OnboardingSignInPage() {
   }, [appNavigation, config?.remote_onboarding_acknowledged]);
 
   const getOnboardingDestination = async (): Promise<OnboardingDestination> => {
-    const firstProjectDestination =
-      await getFirstProjectDestination(setSelectedOrgId);
-    if (
-      !firstProjectDestination ||
-      firstProjectDestination.kind !== 'project'
-    ) {
-      trackRemoteOnboardingEvent(REMOTE_ONBOARDING_EVENTS.STAGE_FAILED, {
-        stage: 'sign_in',
-        reason: 'destination_lookup_failed',
-      });
-      return { kind: 'workspaces-create' };
-    }
-
-    return firstProjectDestination;
+    return { kind: 'workspaces-create' };
   };
 
   const finishOnboarding = async (options: {
@@ -193,17 +177,9 @@ export function OnboardingSignInPage() {
       stage: 'sign_in',
       method: options.method,
       destination_kind: destination.kind,
-      destination_project_id:
-        destination.kind === 'project' ? destination.projectId : null,
+      destination_project_id: null,
     });
-    switch (destination.kind) {
-      case 'workspaces-create':
-        appNavigation.goToWorkspacesCreate({ replace: true });
-        return;
-      case 'project':
-        appNavigation.goToProject(destination.projectId, { replace: true });
-        return;
-    }
+    appNavigation.goToWorkspacesCreate({ replace: true });
   };
 
   const handleProviderSignIn = async (provider: OAuthProvider) => {

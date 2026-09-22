@@ -12,12 +12,10 @@ import {
   BroadcastIcon,
   CheckIcon,
   CopyIcon,
-  DesktopIcon,
   SignInIcon,
   SpinnerIcon,
 } from '@phosphor-icons/react';
 import { OAuthDialog } from '@/shared/dialogs/global/OAuthDialog';
-import { useAppRuntime } from '@/shared/hooks/useAppRuntime';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
 import { relayApi } from '@/shared/lib/api';
@@ -30,7 +28,6 @@ import {
   SettingsSaveBar,
 } from './SettingsComponents';
 import { useSettingsDirty } from './SettingsDirtyContext';
-import { RemoteCloudHostsSettingsCardContent } from './RemoteCloudHostsSettingsCard';
 
 const RELAY_PAIRED_CLIENTS_QUERY_KEY = ['relay', 'paired-clients'] as const;
 const RELAY_REMOTE_CONTROL_DOCS_URL =
@@ -43,24 +40,12 @@ interface RelaySettingsSectionInitialState {
 type RelayRole = 'host' | 'client';
 
 export function RelaySettingsSectionContent({
-  initialState,
   onClose,
 }: {
   initialState?: RelaySettingsSectionInitialState;
   onClose?: () => void;
 }) {
-  const runtime = useAppRuntime();
-
-  if (runtime === 'local') {
-    return <LocalRelaySettingsSectionContent onClose={onClose} />;
-  }
-
-  return (
-    <RemoteRelaySettingsSectionContent
-      initialState={initialState}
-      onClose={onClose}
-    />
-  );
+  return <LocalRelaySettingsSectionContent onClose={onClose} />;
 }
 
 function RelayRoleChooser({
@@ -82,17 +67,6 @@ function RelayRoleChooser({
         description={t(
           'settings.relay.host.description',
           'Allow other devices to remotely control workspaces on this machine.'
-        )}
-        onSelect={onSelect}
-      />
-      <RelayRoleChoice
-        role="client"
-        selected={selectedRole === 'client'}
-        icon={<DesktopIcon className="size-icon-sm" weight="bold" />}
-        label={t('settings.relay.client.label', 'Client')}
-        description={t(
-          'settings.relay.client.panelDescription',
-          'Control workspaces on another device by pairing to it with a one-time code.'
         )}
         onSelect={onSelect}
       />
@@ -142,51 +116,8 @@ function RelayRoleChoice({
   );
 }
 
-function InlineNotice({
-  tone = 'info',
-  children,
-}: {
-  tone?: 'info' | 'error' | 'success';
-  children: ReactNode;
-}) {
-  const className =
-    tone === 'error'
-      ? 'bg-error/10 border-error/50 text-error'
-      : tone === 'success'
-        ? 'bg-success/10 border-success/50 text-success'
-        : 'bg-secondary/40 border-border text-low';
-
-  return (
-    <div className={`rounded-sm border p-3 text-sm ${className}`}>
-      {children}
-    </div>
-  );
-}
-
-function SignInPrompt() {
-  const { t } = useTranslation(['settings', 'common']);
-
-  return (
-    <div className="space-y-3">
-      <InlineNotice>
-        {t(
-          'settings.relay.signInRequired',
-          'Sign in to pair and manage remote connections.'
-        )}
-      </InlineNotice>
-      <PrimaryButton
-        variant="secondary"
-        value={t('settings.remoteProjects.loginRequired.action', 'Sign in')}
-        onClick={() => void OAuthDialog.show({})}
-      >
-        <SignInIcon className="size-icon-xs mr-1" weight="bold" />
-      </PrimaryButton>
-    </div>
-  );
-}
-
 function LocalRelaySettingsSectionContent({
-  onClose,
+  onClose: _onClose,
 }: {
   onClose?: () => void;
 }) {
@@ -585,28 +516,6 @@ function LocalRelaySettingsSectionContent({
         </SettingsCard>
       )}
 
-      {selectedRole === 'client' && (
-        <SettingsCard
-          title={t('settings.relay.client.panelTitle', 'Connect to a host')}
-          headerAction={
-            <a
-              href={RELAY_REMOTE_CONTROL_DOCS_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="text-sm text-brand hover:underline"
-            >
-              {t('settings.relay.docsLink', 'Read docs')}
-            </a>
-          }
-        >
-          {isSignedIn ? (
-            <RemoteCloudHostsSettingsCardContent onClose={onClose} />
-          ) : (
-            <SignInPrompt />
-          )}
-        </SettingsCard>
-      )}
-
       <SettingsSaveBar
         show={hasUnsavedChanges}
         saving={saving}
@@ -614,57 +523,6 @@ function LocalRelaySettingsSectionContent({
         onDiscard={handleDiscard}
       />
     </div>
-  );
-}
-
-function RemoteRelaySettingsSectionContent({
-  initialState,
-  onClose,
-}: {
-  initialState?: RelaySettingsSectionInitialState;
-  onClose?: () => void;
-}) {
-  const { t } = useTranslation(['settings']);
-  const { isSignedIn } = useAuth();
-
-  if (!isSignedIn) {
-    return (
-      <SettingsCard
-        title={t('settings.relay.client.title', 'Connect to a host')}
-        description={t(
-          'settings.relay.client.description',
-          'Control workspaces on another device by pairing to it with a one-time code.'
-        )}
-      >
-        <SignInPrompt />
-      </SettingsCard>
-    );
-  }
-
-  return (
-    <SettingsCard
-      title={t('settings.relay.client.panelTitle', 'Connect to a host')}
-      description={t(
-        'settings.relay.client.panelDescription',
-        'Control workspaces on another device by pairing to it with a one-time code.'
-      )}
-      headerAction={
-        <a
-          href={RELAY_REMOTE_CONTROL_DOCS_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="text-sm text-brand hover:underline"
-        >
-          {t('settings.relay.docsLink', 'Read docs')}
-        </a>
-      }
-    >
-      <RemoteCloudHostsSettingsCardContent
-        initialHostId={initialState?.hostId}
-        mode="remote"
-        onClose={onClose}
-      />
-    </SettingsCard>
   );
 }
 

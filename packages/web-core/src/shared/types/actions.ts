@@ -6,7 +6,6 @@ import type {
   Workspace,
   PatchType,
 } from 'shared/types';
-import type { Workspace as RemoteWorkspace } from 'shared/remote-types';
 import type { DiffViewMode } from '@/shared/stores/useDiffViewStore';
 import type { LayoutMode } from '@/shared/stores/useUiPreferencesStore';
 import { RIGHT_MAIN_PANEL_MODES } from '@/shared/stores/useUiPreferencesStore';
@@ -67,29 +66,6 @@ export interface ActionExecutorContext {
   // Logs panel state
   currentLogs: LogEntry[] | null;
   logsPanelContent: LogsPanelContent | null;
-  // Command bar navigation
-  openStatusSelection: (projectId: string, issueIds: string[]) => Promise<void>;
-  openPrioritySelection: (
-    projectId: string,
-    issueIds: string[]
-  ) => Promise<void>;
-  openAssigneeSelection: (
-    projectId: string,
-    issueIds: string[],
-    isCreateMode?: boolean
-  ) => Promise<void>;
-  openSubIssueSelection: (
-    projectId: string,
-    issueId: string,
-    mode?: 'addChild' | 'setParent'
-  ) => Promise<{ type: string } | undefined>;
-  openWorkspaceSelection: (projectId: string, issueId: string) => Promise<void>;
-  openRelationshipSelection: (
-    projectId: string,
-    issueId: string,
-    relationshipType: 'blocking' | 'related' | 'has_duplicate',
-    direction: 'forward' | 'reverse'
-  ) => Promise<void>;
   // Kanban navigation (URL-based)
   navigateToCreateIssue: (options?: ProjectIssueCreateOptions) => void;
   // Default status for issue creation based on current kanban tab
@@ -100,7 +76,6 @@ export interface ActionExecutorContext {
   // Project mutations (registered when inside ProjectProvider)
   projectMutations?: ProjectMutations;
   // Remote workspaces (from Electric sync via UserContext)
-  remoteWorkspaces: RemoteWorkspace[];
 }
 
 // Context for evaluating action visibility and state conditions

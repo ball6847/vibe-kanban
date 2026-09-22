@@ -8,9 +8,7 @@ import type {
   ExportProject,
 } from '@/features/export/ui/ExportChooseProjects';
 import { useAuth } from '@/shared/hooks/auth/useAuth';
-import { useUserOrganizations } from '@/shared/hooks/useUserOrganizations';
-import { useOrganizationProjects } from '@/shared/hooks/useOrganizationProjects';
-import { makeRequest as makeRemoteRequest } from '@/shared/lib/remoteApi';
+import { makeLocalApiRequest } from '@/shared/lib/localApiTransport';
 import { LoginRequiredPrompt } from '@/shared/dialogs/shared/LoginRequiredPrompt';
 
 function resolveTheme(theme: ThemeMode): 'light' | 'dark' {
@@ -82,15 +80,8 @@ export function ExportPage({
 
 export function ExportPageContainer() {
   const { isLoaded, isSignedIn } = useAuth();
-  const { data: orgsData, isLoading: orgsLoading } = useUserOrganizations();
-  const organizations = useMemo<ExportOrganization[]>(
-    () =>
-      (orgsData?.organizations ?? []).map((organization) => ({
-        id: organization.id,
-        name: organization.name,
-      })),
-    [orgsData?.organizations]
-  );
+  const organizations = useMemo<ExportOrganization[]>(() => [], []);
+  const orgsLoading = false;
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -107,19 +98,11 @@ export function ExportPageContainer() {
     }
   }, [organizations, selectedOrgId]);
 
-  const { data: projectData = [], isLoading: projectsLoading } =
-    useOrganizationProjects(selectedOrgId);
-  const projects = useMemo<ExportProject[]>(
-    () =>
-      projectData.map((project) => ({
-        id: project.id,
-        name: project.name,
-      })),
-    [projectData]
-  );
+  const projects = useMemo<ExportProject[]>(() => [], []);
+  const projectsLoading = false;
 
   const exportFn = useCallback(async (request: ExportRequest) => {
-    return makeRemoteRequest('/v1/export', {
+    return makeLocalApiRequest('/api/export', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),

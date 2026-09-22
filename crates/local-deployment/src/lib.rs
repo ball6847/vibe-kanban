@@ -168,40 +168,20 @@ impl Deployment for LocalDeployment {
         let profile_cache = Arc::new(RwLock::new(None));
         let auth_context = AuthContext::new(oauth_credentials.clone(), profile_cache.clone());
 
-        let api_base = std::env::var("VK_SHARED_API_BASE")
-            .ok()
-            .or_else(|| option_env!("VK_SHARED_API_BASE").map(|s| s.to_string()));
         let relay_api_base = std::env::var("VK_SHARED_RELAY_API_BASE")
             .ok()
             .or_else(|| option_env!("VK_SHARED_RELAY_API_BASE").map(|s| s.to_string()));
         let remote_info = RemoteInfo::new();
-        if let Some(api_base) = api_base.clone() {
-            remote_info
-                .set_api_base(api_base)
-                .expect("api_base already set");
-        }
         if let Some(relay_api_base) = relay_api_base {
             remote_info
                 .set_relay_api_base(relay_api_base)
                 .expect("relay_api_base already set");
         }
 
-        let remote_client = match remote_info.get_api_base() {
-            Some(url) => match RemoteClient::new(&url, auth_context.clone()) {
-                Ok(client) => {
-                    tracing::info!("Remote client initialized with URL: {}", url);
-                    Ok(client)
-                }
-                Err(e) => {
-                    tracing::error!(?e, "failed to create remote client");
-                    Err(RemoteClientNotConfigured)
-                }
-            },
-            None => {
-                tracing::info!("VK_SHARED_API_BASE not set; remote features disabled");
-                Err(RemoteClientNotConfigured)
-            }
-        };
+        // The remote cloud API is gone; no remote client is available. Relay host
+        // pairing depended on it, so it is not constructed here either.
+        let remote_client: Result<RemoteClient, RemoteClientNotConfigured> =
+            Err(RemoteClientNotConfigured);
 
         let oauth_handoffs = Arc::new(RwLock::new(HashMap::new()));
         let trusted_key_auth = TrustedKeyAuthRuntime::new(trusted_keys_path());
@@ -230,7 +210,6 @@ impl Deployment for LocalDeployment {
             analytics_ctx,
             approvals.clone(),
             queued_message_service.clone(),
-            remote_client.clone().ok(),
         )
         .await;
 
