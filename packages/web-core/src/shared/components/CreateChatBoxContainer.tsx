@@ -229,6 +229,8 @@ export function CreateChatBoxContainer({
     const data = {
       executor_config: executorConfig,
       name: title,
+      // Set when the composer was opened from a task card; see the board's create action.
+      task_id: null,
       prompt: message,
       repos: repos.map((r) => ({
         repo_id: r.id,
