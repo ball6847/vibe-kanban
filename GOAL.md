@@ -1,115 +1,164 @@
-# GOAL — `pi` (pi-acp) executor support, with working model/thinking selection via our fork
+# GOAL — bring the task UX/UI back (local, cloud-free, verified by screenshots)
 
-**Status:** base support shipped (loop iterations 1–86); this spec covers the remaining goal: model/thinking selection
-through the running app, using **our pi-acp fork** instead of upstream.
-**Check command:** `./check.sh` → prints `SCORE: <n>` and `MAX: <n>`; **exit 0 only when `SCORE == MAX`**.
-`CHECK_FAST=1 ./check.sh` skips the e2e/browser work for a ~1-minute static+build pass.
-**Status:** all criteria below are met — `SCORE 123 / MAX 123` (207 s) with the dev stack and `123 / MAX 123`
-with `--fresh-state` (220 s), 2026-09-21. `SCORE: 79 / MAX: 94` was the starting point before the fork work.
-**State files:** `PROGRESS.md` (live state), `IMPROVEMENTS.md` (backlog), `ASSUMPTIONS.md` (decisions/deviations),
-`notes/loop-history.md` (iteration log), `.context/evidence/pi/` (browser evidence).
+Status: active · Branch: `drop-remote-support` · Checker: [`check.sh`](./check.sh) (`CHECK_FAST=1 ./check.sh` ≈ 2.5 min, full ≈ 5.5 min)
 
 ## Objective
 
-Make Vibe Kanban's `PI` executor complete: pi must be selectable, run end-to-end, **and let the user choose the model and
-thinking level, with the choice actually applied to the agent**. The mechanism is our own `pi-acp` fork — Vibe Kanban's Rust
-client cannot send the modern ACP config-option request, so the fork accepts the legacy `session/set_model` call it does
-send and translates it. Everything must be verified through the running app (browser harness), and the code must follow the
-existing ACP executor patterns.
+Restore the **task experience** that the deleted cloud feature provided, using only local data, so a
+task is a first-class object again: clickable cards, a dedicated detail panel, a workspace you can jump
+to, and a task state that advances itself while work happens.
 
-## Ground truth (verified; do not re-derive)
+Upstream reference (`git show afc578024` — "drop all remote/cloud support") deleted, among others:
+`pages/kanban/KanbanIssuePanelContainer.tsx` (the detail panel), `ProjectRightSidebarContainer.tsx`
+(the panel host that jumped to the workspace), `kanban-issue-panel-state.ts` (panel selection state),
+`IssueWorkspacesSectionContainer.tsx` (the task's workspace section), `features/kanban/ui/
+KanbanContainer.tsx`, `useKanbanFilters.ts`, `BulkActionBarContainer.tsx`, `useIssueShortcuts.ts`,
+and the selection params in `project-routes/project-search.ts` (now `z.object({})`).
 
-- Executor: `crates/executors/src/executors/pi.rs`, pattern = `AcpAgentHarness` + `StandardCodingAgentExecutor`
-  (`crates/executors/src/executors/acp/harness.rs`). Base support is done and green (runs, follow-ups, attachments, setup
-  scripts, concurrency, cancellation, 24 slash commands, docs page, `--fresh-state` = 100/100 on the old criteria).
-- **Why selection was blocked:** VK's pinned `agent-client-protocol` 0.8 sends `session/set_model`; pi-acp bundles
-  `@agentclientprotocol/sdk@0.26.0`, which dispatches only `session/{cancel,list,load,prompt,update}` → `Method not found`.
-  pi exposes `model` and `thought_level` as **session config options**; 0.8 has no API to send `session/set_config_option`
-  and no raw-request escape hatch, and `_meta` is ignored by pi-acp. Bumping the Rust crate is **not** the fix: 0.11 removed
-  `ClientSideConnection` and the `Client` trait, i.e. it is a layer rewrite (measured: 127 errors, then structural).
-- **Fork:** `github.com/ball6847/pi-acp` (pushed, `main`, version `0.0.34`, commit `f8d999f`). Adds
-  `src/acp/set-model-shim.ts`: rewrites `session/set_model` → `session/set_config_option` (`model`, plus `thought_level` when
-  `modelId` carries a `:<level>` suffix) and answers the client once both complete. 98/98 tests pass, eslint/prettier clean,
-  `prepare` script added so git installs build.
-- **Verified against a real pi session** (probe): `session/set_model` no longer errors; `kimi-coding/k3` applied;
-  `…deepseek-v4.1-flash:minimal` applied model **and** `thought_level: minimal`; `kimi-coding/k3:off` left the level at
-  `high` because **pi itself** ignores unsupported levels for that model (not a shim bug).
-- VK composes the model as `provider/model:<level>` (`effective_model()` in `pi.rs`); discovery reads `pi --list-models`
-  (236 models, 173 with thinking levels; order `off, minimal, low, medium, high`, plus per-model `xhigh`/`max`).
-- Model discovery behind `MODEL_SELECTION_SUPPORTED` works when flipped (verified live): 236 models, default present.
-- Discovered options API (used by `check.sh` §11):
-  `ws://localhost:$PORT/api/agents/discovered-options/ws?executor=PI&repo_id=<id>` → patches containing `model_selector`.
-- Dev stack: `pnpm run dev` → UI `:3003`, backend `:3004` (port from `/tmp/vibe-kanban/vibe-kanban.port`), pid
-  `/tmp/vk-dev.pid`. `cargo watch` rebuilds in ~30–60 s; wait for it before asserting behaviour.
-- Browser harness: Chrome at `~/.dotfiles/agent-browser/browsers/chrome-*/chrome`, profile
-  `/tmp/agent-browser-chrome-f132f78e-5df2-48a1-8dd5-e25b1e3988c6`, CDP needs `--remote-allow-origins=*`.
+Parity target = the **local** subset of that UX. Verification target = a browser-driven (agent-browser)
+run that produces **screenshots** plus DOM/API assertions for every capability.
 
 ## Scope
 
-- Point the `PI` executor at **our fork** and keep it a one-line, reviewable dependency change.
-- Switch model selection on and prove the choice reaches pi.
-- Keep the fork a **thin shim** (no pi semantics changes); keep VK free of protocol-crate churn.
-- Update docs, tests, `check.sh`, and the evidence set so every claim is verifiable.
+In scope (all local, no new runtime dependencies):
 
-## Non-goals
+1. **Clickable task card → selection.** Clicking a card selects the task and reflects it in the URL
+   (`/projects/<projectId>/issues/<taskId>`), so the view is linkable and survives reload. Card controls (move/create/delete)
+   keep working and must not trigger selection.
+2. **Dedicated task detail UI** (right-hand panel, as upstream): title, description, status, workspace,
+   inline edit of title/description, delete. Closeable (button and `Escape`).
+3. **Workspace section, 1:1**: a task owns at most one workspace. The panel shows it and can open it
+   (`goToWorkspace`) or create it (prefilled from the task, as today). Starting a second one from the
+   same task opens the existing workspace instead of creating a duplicate — enforced in the database.
+4. **Automated task status**: execution starting → `in_progress`; execution finishing → `in_review`;
+   PR merged → `done`. Forward-only, never silently undoing an operator's `done`/`cancelled`.
+5. **Board ergonomics that the old UI had**: filter tasks (text + status), bulk actions (select several
+   tasks → move / delete), and keyboard handling (`Escape` closes the panel, `c` focuses the new-task
+   input, `/` focuses the filter).
 
-- No `agent-client-protocol` bump, no ACP layer rewrite (documented in `IMPROVEMENTS.md`; shared with gemini/qwen/copilot,
-  which cannot be end-to-end tested here).
-- No gemini/qwen/copilot behaviour changes; no MCP support for pi (pi has none by design).
-- No npm registry publish unless a git spec proves insufficient (then document why).
-- No speculative UI work: only what `MODEL_SELECTION_SUPPORTED` + existing components already support.
+Non-goals (deleted with the cloud feature and impossible locally): comments, sub-issues, issue
+relationships, assignees, priorities, remote issue links, the sunset page, remote workspaces. Do not
+re-add cloud code, `shared/remote-types.ts`, `crates/remote`, `packages/remote-web`, or Electric deps.
 
 ## Completion criteria (measurable)
 
-| # | Criterion | How it is checked |
-| --- | --- | --- |
-| C1 | Executor runs our fork (`github:ball6847/pi-acp`) | `check.sh` §1 |
-| C2 | Model selection switched on (`MODEL_SELECTION_SUPPORTED = true`) | `check.sh` §11 |
-| C3 | Discovery advertises models (>0) with thinking levels, default present | `check.sh` §11 |
-| C4 | A workspace run with a chosen non-default model + level completes exit 0 and pi's session shows that model | new e2e assertion in `check.sh` |
-| C5 | The picker is visible and usable in the UI, evidenced by screenshots | `check.sh` browser section + `.context/evidence/pi/` |
-| C6 | Existing pi behaviour still green (run, follow-up, attachments, setup script, concurrency, cancellation, slash commands) | `check.sh` §2–§10 |
-| C7 | Unit tests (≥ 22 in `pi.rs`) pass; `cargo check -p executors -p server` clean | `check.sh` build section |
-| C8 | Docs describe the fork, selection, and `:level` semantics (incl. pi ignoring unsupported levels) | `check.sh` docs section |
-| C9 | `pnpm run format` applied; conventional commits; `git status` clean | manual / commit log |
-| C10 | Negative controls re-measured after any `check.sh` change | `notes/negative-controls.md` |
-| C11 | `./check.sh` reaches `SCORE == MAX`; `./check.sh --fresh-state` also green | `check.sh` |
+`./check.sh` is the arbiter: it prints `SCORE: <n>` / `MAX: <n>` and exits 0 **only** when
+`SCORE == MAX`. Baseline today is printed by the first run; every milestone raises it.
 
-## Milestones
+Hard criteria (each is a gate section):
 
-- **M1 — fork is consumable.** `npm pack` and a git install from `github:ball6847/pi-acp` both produce a working adapter;
-  a probe against the *installed* copy applies a model and a level. Verify: probe output shows model + `thought_level`.
-- **M2 — executor uses the fork.** Replace the pinned `pi-acp@0.0.33` with the fork spec in `pi.rs`; `cargo check -p executors`
-  clean; unit tests pass; one API-driven workspace run completes exit 0. Verify: `check.sh` C1 + a run.
-- **M3 — selection switched on.** Flip the flag; discovery reports models/reasoning/default; `check.sh` §1, §11 pass.
-- **M4 — the choice actually reaches pi.** Start a run choosing a non-default model and a thinking level; assert the applied
-  model from pi's own session record (pi persists the model per session under `~/.pi/agent/sessions`) and that the run
-  completes exit 0. Add this as a real `check.sh` e2e assertion (replacing any interim assumption).
-- **M5 — browser verification.** Via the harness: open the workspace form, confirm the model picker lists models, select a
-  non-default model, start the run, capture evidence (`pick-models`, `pick-selected`, `pick-run`) + update `NOTES.md`.
-- **M6 — docs and tests.** `docs/agents/pi.mdx`: fork adapter, how selection works, `:level` suffixes, pi-ignored levels,
-  upgrade/rollback of the fork; remove the "picker hidden" limitation. Keep/extend tests.
-- **M7 — negative controls.** Re-measure with `check.sh` changes in place (baseline, evidence removed, capability faked).
-- **M8 — close out.** `PROGRESS.md`, `IMPROVEMENTS.md`, `ASSUMPTIONS.md` updated; full `./check.sh` and `--fresh-state`
-  green; `git status` clean; loop history rotated per `notes/README.md`.
+- **Selection**: the card is clickable, the URL carries `?task=`, a reload keeps the panel open, and
+  `Escape` closes it.
+- **Detail panel**: `data-testid="task-detail-panel"` visible after a card click, showing the task's
+  title, description and status; editing the title through the panel persists (`GET /api/tasks/<id>`).
+- **Workspace section**: the panel shows the linked workspace, `task-detail-open-workspace` navigates to
+  `/workspaces/<workspaceId>`, and `task-detail-create-workspace` runs the existing prefilled create flow.
+- **1:1**: triggering create-from-task twice leaves exactly one workspace for that task
+  (`GET /api/workspaces?task_id=` returns one id both times).
+- **Automated status**: after the e2e creates and starts a workspace from a task, `GET /api/tasks/<id>`
+  reports `in_progress` with nobody clicking a move button; the transition function is unit tested.
+- **Filters / bulk / keyboard**: filtering narrows the rendered cards; selecting two cards and moving
+  them updates both tasks (`GET /api/tasks`); `Escape` closes the panel.
+- **Evidence**: ≥4 screenshots (>12 KB PNG, one per claim above) committed under
+  `.context/evidence/task-ux/` together with a `NOTES.md` that maps each screenshot to the claim it proves.
+- **Quality**: type checks, lint, prettier, `cargo check`, SQLx caches, i18n regression, local-web build
+  and the vitest suite all pass; no new runtime dependency; no cloud code (guards in section 5).
+
+## Mandated test hooks (the gate greps these — do not rename)
+
+| Hook | Where |
+| --- | --- |
+| `task-card-<taskId>` | card root (already exists) — clicking it selects the task |
+| `task-detail-panel` | panel root |
+| `task-detail-title`, `task-detail-description`, `task-detail-status` | panel fields |
+| `task-detail-edit-title`, `task-detail-title-input`, `task-detail-save`, `task-detail-delete` | panel controls |
+| `task-detail-open-workspace`, `task-detail-create-workspace` | panel workspace actions |
+| `kanban-filter-input`, `kanban-filter-clear` | board filter |
+| `task-select-<taskId>`, `kanban-bulk-move`, `kanban-bulk-delete` | bulk actions |
+| `task-create-workspace-<taskId>`, `task-open-workspace-<workspaceId>` | card actions (already exist) |
+
+URL contract: the selection lives in the URL. The board reuses the project-issue route the codebase
+already declares (`/projects/<projectId>/issues/<taskId>`, reached with `goToProjectIssue`), which the
+existing `resolveKanbanRouteState` turns into `issueId` + `isPanelOpen`; `?task=<taskId>` is accepted as
+an equivalent. Selecting a card sets it, closing the panel returns to `/projects/<projectId>`. The create flow's prompt editor is
+a Lexical `contenteditable` (`aria-label="Markdown editor"`) that does not forward `data-testid`; the
+gate locates it by that label and submits with the composer's `Create` button.
+
+## Milestones (small steps; commit each one)
+
+- [x] **M1 — selection plumbing.** Extend `projectSearchSchema` with `task`, expose it from
+  `useCurrentKanbanRouteState`, make the card a clickable region that sets/clears the param, add
+  `Escape` to close. Verify: gate section 2 + `?task=` in the browser.
+- [x] **M2 — detail panel.** New `packages/web-core/src/pages/kanban/TaskDetailPanel.tsx` rendered by the
+  board when a task is selected: title/description (inline edit), status, delete, close button; all
+  strings in `kanban.task.*` for the 7 locales. Verify: gate section 3 + screenshot.
+- [x] **M3 — workspace section + 1:1.** Panel section showing the linked workspace with open/create;
+  migration adding a partial unique index on `workspace.task_id`; create-from-task reuses the existing
+  workspace. Verify: gate section 4 + the e2e create-twice check + screenshot.
+- [x] **M4 — automated status.** Restore `Task::update_status` around a pure, unit-tested transition
+  function, then hook it: execution start → `in_progress`, execution finish → `in_review`, PR merge →
+  `done` (forward-only, never regressing `done`/`cancelled`). Verify: gate section 5 + e2e status poll.
+- [x] **M5 — filters.** Text + status filtering in a pure model (`taskFilters.ts`) with tests, wired to
+  `kanban-filter-input` / `kanban-filter-clear`. Verify: gate section 6 + e2e narrowing.
+- [x] **M6 — bulk actions.** Per-card selection checkbox (`task-select-<id>`), a bulk bar with move and
+  delete, pure selection model with tests. Verify: gate section 6 + e2e multi-move.
+- [x] **M7 — keyboard.** `Escape` (close panel), `c` (focus new-task input), `/` (focus filter) via a
+  small hook; documented in `docs/local-projects-kanban.md`. Verify: gate section 6 + e2e keypress.
+- [x] **M8 — quality pass.** `pnpm run format`, docs updated (task panel, 1:1, status automation,
+  shortcuts), evidence `NOTES.md` + screenshots committed, full `./check.sh` green, tree clean apart
+  from the loop's own log file.
 
 ## Quality standards
 
-- **Scoped loops:** `cargo check -p executors` / `-p server` (3–9 s warm). Never `--workspace` (fails: `tauri-app` needs
-  GTK/glib dev libs, and it is slow).
-- **Tests:** Rust unit tests next to the code (`#[cfg(test)]`); `cargo test -p executors --lib pi` must stay green.
-  Fork tests: `npm test` (98) + eslint/prettier, run before pushing the fork.
-- **Verification before claims:** each criterion must trace to a command output or an artifact. No "should work".
-- **Commits:** conventional messages, one logical unit each; `git status` clean; never commit `dev_assets/`.
-- **Evidence:** every UI claim backed by a screenshot in `.context/evidence/pi/` that is newer than the code it shows.
-- **Fork hygiene:** one purpose per commit, README documents the shim, version bumped on behaviour change.
+- Conventional Commits, **one milestone per commit**; the repo must type-check and format at every commit.
+- Tests for all pure logic (vitest, `packages/web-core`) — filtering, selection, transitions, link lookup.
+- i18n: every user-facing string exists in all 7 locales (`en, es, fr, ja, ko, zh-Hans, zh-Hant`) with no
+  orphans (the ≤104 unused-key baseline is a regression guard, not a target).
+- Docs: `docs/local-projects-kanban.md` describes the task panel, the 1:1 rule and the automatic statuses.
+- Evidence: screenshots are the verification artifact — capture them from a real browser run and commit
+  them; never fabricate a claim the gate cannot reproduce.
+- Keep diffs surgical: do not reformat pre-existing drift; record unrelated cleanups in `IMPROVEMENTS.md`.
 
-## Assumptions and deviations
+## Assumptions (decided without asking; recorded in `ASSUMPTIONS.md`)
 
-- The machine has network access for `npx`/git installs; the fork stays public.
-- pi-acp's config-option values are the model ids VK already lists (`provider/model`); the shim strips the `:<level>` suffix
-  before applying the model.
-- pi may ignore a level it does not support for a given model — that is pi's rule, documented, not worked around.
-- Supervised approvals stay a documented deviation (pi-acp only requests ACP permission for extension UI prompts).
-- `SETUP_HELPER` remains informational until something consumes it.
-- Project-local pi skills stay trust-gated (`~/.pi/agent/trust.json`); `/skill:<name>` prompts do invoke skills (verified).
+1. **Parity means the local subset.** Cloud-only affordances (comments, sub-issues, relations, assignees,
+   priority, remote links) are non-goals — they cannot work without the deleted backend.
+2. **The panel is a right-hand sidebar on the board**, selected through URL search params — exactly how
+   upstream did it (`projectSearchValidator` + `ProjectRightSidebarContainer`). The leftover
+   `/projects/$projectId/issues/$issueId` routes stay untouched (their removal is separate cleanup).
+3. **`workspace.task_id` stays the source of truth**, now backed by a partial unique index for 1:1;
+   `Task.parent_workspace_id` remains unused.
+4. **Status automation is forward-only**: `todo → in_progress → in_review → done`, `cancelled` terminal,
+   and `in_review` is reachable from `todo` when an execution finishes without a recorded start.
+5. **A screenshot is valid evidence** if it is a PNG > 12 KB produced by `agent-browser screenshot` during
+   the run (blank/failed captures are smaller).
+6. **`agent-browser` is the only e2e driver** (`--args "--no-sandbox"`); relative screenshot paths resolve
+   against the daemon's cwd, so the gate always passes absolute paths.
+7. **Rust checks exclude `vibe-kanban-tauri`** (system glib/GTK absent here).
+8. **Pre-existing drift is out of scope**: 26 unformatted `web-core` files and 104 unused i18n keys exist
+   on `main`; the gate only forbids regressions.
+
+## Baseline (measured before M1)
+
+Baseline when this spec was written: **fast `SCORE 58 / MAX 226` in 106 s**. Every milestone is now
+implemented and the gate is green end to end: **fast `261/261` (192 s)** and **full `282/282` (324 s),
+exit 0**. Always compare `SCORE` against that run's `MAX`, since fast mode skips the lint, i18n and
+build sections.
+
+## Operating notes (for an unattended run)
+
+- Start the dev stack detached, or it dies with the harness process group:
+  `setsid nohup pnpm run dev > /tmp/vibe-dev.log 2>&1 < /dev/null & disown`; UI on
+  `http://localhost:3003`, API on `http://localhost:3004` (port file `/tmp/vibe-kanban/vibe-kanban.port`).
+- `cargo watch` rebuilds after Rust edits — poll `/api/health` for 200 before API/e2e work. The heavy
+  gate sections rebuild `target/`, so restart the stack after a full run.
+- Run the e2e **before** the Rust gates (they starve `cargo watch` and can kill the API the browser needs).
+- Fixtures (repo, project, task, workspace) are created and deleted by the gate itself.
+- The dev stack's database is `dev_assets/db.v2.sqlite` (gitignored) — not
+  `~/.local/share/vibe-kanban/*.sqlite`, which is a stale file from an older install; query the former to
+  check schema state. Give both the API and the frontend their own killed-and-restarted stack: a stale
+  instance holding 3003/3004 while a new one takes 3004/3005 makes the API's `VK_ALLOWED_ORIGINS` reject
+  the browser's origin, so every mutation answers a bodyless 403 that looks like a broken feature.
+- Migrations are embedded at compile time (`sqlx::migrate!`), and a touched `crates/db` source can take
+  ~8 minutes to rebuild: after adding a migration, wait for the rebuild to finish *and* restart the API,
+  then confirm the index in `dev_assets/db.v2.sqlite` before trusting it.

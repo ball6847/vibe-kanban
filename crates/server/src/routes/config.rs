@@ -26,7 +26,6 @@ use services::services::{
         save_config_to_file,
     },
     container::ContainerService,
-    remote_client::RemoteClientError,
 };
 use tokio::fs;
 use ts_rs::TS;
@@ -97,7 +96,6 @@ pub struct UserSystemInfo {
     pub environment: Environment,
     /// Capabilities supported per executor (e.g., { "CLAUDE_CODE": ["SESSION_FORK"] })
     pub capabilities: HashMap<String, Vec<BaseAgentCapability>>,
-    pub shared_api_base: Option<String>,
     pub preview_proxy_port: Option<u16>,
 }
 
@@ -124,9 +122,7 @@ async fn get_user_system_info(
                 Some(_) => {
                     if auth_context.remote_auth_degraded_slug().await.is_none() {
                         auth_context
-                            .set_remote_auth_degraded_slug(
-                                RemoteClientError::generic_degraded_slug(),
-                            )
+                            .set_remote_auth_degraded_slug("remote_auth_unavailable")
                             .await;
                     }
 
@@ -170,7 +166,6 @@ async fn get_user_system_info(
             }
             caps
         },
-        shared_api_base: deployment.remote_info().get_api_base(),
         preview_proxy_port: deployment.client_info().get_preview_proxy_port(),
     };
 

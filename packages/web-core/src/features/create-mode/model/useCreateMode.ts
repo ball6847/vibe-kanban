@@ -29,6 +29,8 @@ export interface CreateModeContextValue {
   hasInitialValue: boolean;
   /** Issue to link the workspace to when created */
   linkedIssue: LinkedIssue | null;
+  /** Local task to link the workspace to when created (projects kanban) */
+  taskId: string | null;
   /** Clear the linked issue */
   clearLinkedIssue: () => void;
   /** Persisted executor config (model selector state) */

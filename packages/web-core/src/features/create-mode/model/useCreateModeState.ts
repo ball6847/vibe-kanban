@@ -13,14 +13,15 @@ import type {
   Repo,
 } from 'shared/types';
 import { ScratchType } from 'shared/types';
-import {
-  PROJECT_ISSUES_SHAPE,
-  type Workspace as RemoteWorkspace,
-} from 'shared/remote-types';
+type RemoteWorkspace = {
+  issue_id: string | null;
+  project_id: string;
+  local_workspace_id: string | null;
+  updated_at: string;
+};
 import { useScratch } from '@/shared/hooks/useScratch';
 import { useDebouncedCallback } from '@/shared/hooks/useDebouncedCallback';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
-import { useShape } from '@/shared/integrations/electric/hooks';
 import { repoApi } from '@/shared/lib/api';
 import { resolveCreateModeBootstrap } from '@/features/create-mode/model/createModeBootstrap';
 import { useWorkspaceCreateDefaults } from '@/shared/hooks/useWorkspaceCreateDefaults';
@@ -48,6 +49,7 @@ interface DraftState {
   repos: SelectedRepo[];
   message: string;
   linkedIssue: LinkedIssue | null;
+  taskId: string | null;
   executorConfig: ExecutorConfig | null;
   attachments: DraftWorkspaceAttachment[];
 }
@@ -84,6 +86,7 @@ const draftInitialState: DraftState = {
   repos: [],
   message: '',
   linkedIssue: null,
+  taskId: null,
   executorConfig: null,
   attachments: [],
 };
@@ -232,6 +235,7 @@ interface UseCreateModeStateResult {
   isLoading: boolean;
   hasInitialValue: boolean;
   linkedIssue: LinkedIssue | null;
+  taskId: string | null;
   executorConfig: ExecutorConfig | null;
   setMessage: (message: string) => void;
   addRepo: (repo: Repo) => void;
@@ -526,6 +530,7 @@ export function useCreateModeState({
         target_branch: r.targetBranch ?? '',
       })),
       executor_config: state.executorConfig ?? null,
+      task_id: state.taskId,
       linked_issue: state.linkedIssue
         ? {
             issue_id: state.linkedIssue.issueId,
@@ -547,32 +552,6 @@ export function useCreateModeState({
   ]);
 
   // ============================================================================
-  // Resolve linked issue details from Electric (when simpleId/title are missing)
-  // ============================================================================
-  const needsIssueResolution =
-    !!state.linkedIssue && !state.linkedIssue.simpleId;
-  const issueProjectId = state.linkedIssue?.remoteProjectId ?? '';
-
-  const { data: issuesForResolution } = useShape(
-    PROJECT_ISSUES_SHAPE,
-    { project_id: issueProjectId },
-    { enabled: needsIssueResolution && !!issueProjectId }
-  );
-
-  useEffect(() => {
-    if (!needsIssueResolution || !state.linkedIssue) return;
-    const issue = issuesForResolution.find(
-      (i) => i.id === state.linkedIssue!.issueId
-    );
-    if (issue) {
-      dispatch({
-        type: 'RESOLVE_LINKED_ISSUE',
-        simpleId: issue.simple_id,
-        title: issue.title,
-      });
-    }
-  }, [needsIssueResolution, issuesForResolution, state.linkedIssue]);
-
   // ============================================================================
   // Derived state
   // ============================================================================
@@ -647,6 +626,7 @@ export function useCreateModeState({
     isLoading: scratchLoading,
     hasInitialValue: state.phase === 'ready',
     linkedIssue: state.linkedIssue,
+    taskId: state.taskId,
     executorConfig: state.executorConfig,
     setMessage,
     addRepo,

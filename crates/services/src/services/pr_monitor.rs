@@ -7,6 +7,7 @@ use db::{
     models::{
         merge::MergeStatus,
         pull_request::PullRequest,
+        task::{Task, TaskStatus},
         workspace::{Workspace, WorkspaceError},
     },
 };
@@ -181,6 +182,14 @@ impl<C: ContainerService + Send + Sync + 'static> PrMonitorService<C> {
             PullRequest::count_open_for_workspace(&self.db.pool, workspace_id).await?;
 
         if open_pr_count == 0 {
+            // Automation: a merged pull request completes the task behind the workspace.
+            if let Some(task_id) = workspace.task_id
+                && let Err(error) =
+                    Task::update_status(&self.db.pool, task_id, TaskStatus::Done).await
+            {
+                warn!("Failed to move task {task_id} to done: {error}");
+            }
+
             info!(
                 "PR #{} was merged, archiving workspace {}",
                 pr_number, workspace.id

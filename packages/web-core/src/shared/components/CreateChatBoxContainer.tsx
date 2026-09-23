@@ -50,6 +50,7 @@ export function CreateChatBoxContainer({
     hasInitialValue,
     hasResolvedInitialRepoDefaults,
     linkedIssue,
+    taskId,
     clearLinkedIssue,
     preferredExecutorConfig,
     executorConfig: draftConfig,
@@ -229,6 +230,7 @@ export function CreateChatBoxContainer({
     const data = {
       executor_config: executorConfig,
       name: title,
+      task_id: taskId,
       prompt: message,
       repos: repos.map((r) => ({
         repo_id: r.id,
@@ -242,16 +244,8 @@ export function CreateChatBoxContainer({
         : null,
       attachment_ids: getAttachmentIds(),
     };
-    const linkToIssue = linkedIssue
-      ? {
-          remoteProjectId: linkedIssue.remoteProjectId,
-          issueId: linkedIssue.issueId,
-        }
-      : undefined;
-
     const result = await createWorkspace.mutateAsync({
       data,
-      linkToIssue,
     });
 
     if (result.workspace) {
@@ -337,6 +331,7 @@ export function CreateChatBoxContainer({
                     localAttachments,
                   }) => (
                     <WYSIWYGEditor
+                      data-testid="workspace-create-prompt"
                       placeholder="Describe the task..."
                       value={value}
                       onChange={onChange}

@@ -478,6 +478,34 @@
         "title": "Invite your team",
         "content": "We've automatically created a personal organization and initial project so you can get started with Vibe Kanban. Export your cloud data before shutdown."
       }
+    },
+    "task": {
+      "createWorkspace": "创建工作区",
+      "openWorkspace": "打开工作区",
+      "details": "任务详情",
+      "close": "关闭",
+      "edit": "编辑",
+      "save": "保存",
+      "cancel": "取消",
+      "delete": "删除",
+      "title": "标题",
+      "description": "描述",
+      "editTitle": "编辑标题",
+      "editDescription": "编辑描述",
+      "workspace": "工作区",
+      "noWorkspace": "尚无工作区"
+    },
+    "filter": {
+      "placeholder": "筛选任务…",
+      "status": "按状态筛选",
+      "all": "全部",
+      "clear": "清除筛选"
+    },
+    "bulk": {
+      "selected": "已选择 {{count}} 项",
+      "move": "向前移动",
+      "delete": "删除",
+      "clear": "清除"
     }
   },
   "createMode": {
@@ -538,6 +566,9 @@
       "tooltip": "登录以查看项目",
       "title": "看板",
       "description": "登录以使用看板管理您的编码代理。"
+    },
+    "projects": {
+      "create": "创建项目"
     }
   },
   "errors": {

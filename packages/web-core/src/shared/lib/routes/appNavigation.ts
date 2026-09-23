@@ -7,6 +7,7 @@ export type AppDestination =
   | { kind: 'workspace'; workspaceId: string; hostId?: string }
   | { kind: 'workspace-vscode'; workspaceId: string; hostId?: string }
   | { kind: 'export' }
+  | { kind: 'projects' }
   | { kind: 'project'; projectId: string }
   | {
       kind: 'project-issue';
@@ -51,6 +52,7 @@ export interface AppNavigation {
     transition?: NavigationTransition
   ): void;
   goToExport(transition?: NavigationTransition): void;
+  goToProjects(transition?: NavigationTransition): void;
   goToProject(projectId: string, transition?: NavigationTransition): void;
   goToProjectIssue(
     projectId: string,
@@ -84,10 +86,7 @@ type ProjectDestinationKind =
   | 'project-workspace-create';
 
 type WorkspaceDestinationKind =
-  | 'workspaces'
-  | 'workspaces-create'
-  | 'workspace'
-  | 'workspace-vscode';
+  'workspaces' | 'workspaces-create' | 'workspace' | 'workspace-vscode';
 
 export type ProjectDestination = Extract<
   AppDestination,
@@ -100,10 +99,7 @@ export type WorkspaceDestination = Extract<
 >;
 
 export type KanbanSidebarMode =
-  | 'closed'
-  | 'issue'
-  | 'issue-workspace'
-  | 'workspace-create';
+  'closed' | 'issue' | 'issue-workspace' | 'workspace-create';
 
 export interface KanbanRouteState {
   hostId: string | null;

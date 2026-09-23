@@ -85,7 +85,8 @@ import {
   buildRepoSelectionPages,
   type RepoSelectionResult,
 } from '@/shared/dialogs/command-bar/selections/repoSelection';
-import { fetchAttachmentSasUrl } from '@/shared/lib/remoteApi';
+// Cloud attachment URLs came from the removed remote API; local attachments only.
+const fetchAttachmentSasUrl = async (): Promise<string> => '';
 import { writeClipboardViaBridge } from '@/shared/lib/clipboard';
 import type { SendMessageShortcut } from 'shared/types';
 import type { BaseCodingAgent } from 'shared/types';

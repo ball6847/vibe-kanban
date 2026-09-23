@@ -478,6 +478,34 @@
         "title": "Invite your team",
         "content": "We've automatically created a personal organization and initial project so you can get started with Vibe Kanban. Export your cloud data before shutdown."
       }
+    },
+    "task": {
+      "createWorkspace": "ワークスペースを作成",
+      "openWorkspace": "ワークスペースを開く",
+      "details": "タスクの詳細",
+      "close": "閉じる",
+      "edit": "編集",
+      "save": "保存",
+      "cancel": "キャンセル",
+      "delete": "削除",
+      "title": "タイトル",
+      "description": "説明",
+      "editTitle": "タイトルを編集",
+      "editDescription": "説明を編集",
+      "workspace": "ワークスペース",
+      "noWorkspace": "ワークスペースはまだありません"
+    },
+    "filter": {
+      "placeholder": "タスクを絞り込む…",
+      "status": "ステータスで絞り込む",
+      "all": "すべて",
+      "clear": "フィルターを解除"
+    },
+    "bulk": {
+      "selected": "{{count}} 件選択中",
+      "move": "次へ移動",
+      "delete": "削除",
+      "clear": "解除"
     }
   },
   "createMode": {
@@ -538,6 +566,9 @@
       "tooltip": "サインインしてプロジェクトを表示",
       "title": "カンバンボード",
       "description": "サインインしてカンバンボードでコーディングエージェントを整理しましょう。"
+    },
+    "projects": {
+      "create": "プロジェクトを作成"
     }
   },
   "errors": {

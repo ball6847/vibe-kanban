@@ -15,5 +15,7 @@ export interface CreateModeInitialState {
   }> | null;
   project_id?: string | null;
   linkedIssue?: LinkedIssue | null;
+  /** Local task the workspace is created from (projects kanban). */
+  taskId?: string | null;
   executorConfig?: ExecutorConfig | null;
 }

@@ -11,9 +11,10 @@ use db::models::{
 };
 use deployment::Deployment;
 use serde::Deserialize;
-use services::services::{container::ContainerService, diff_stream, remote_sync};
+use services::services::container::ContainerService;
 use sqlx::Error as SqlxError;
 use utils::response::ApiResponse;
+use uuid::Uuid;
 use workspace_manager::WorkspaceManager;
 
 use crate::{DeploymentImpl, error::ApiError};
@@ -21,16 +22,24 @@ use crate::{DeploymentImpl, error::ApiError};
 #[derive(Debug, Deserialize)]
 pub struct DeleteWorkspaceQuery {
     #[serde(default)]
-    pub delete_remote: bool,
-    #[serde(default)]
     pub delete_branches: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListWorkspacesQuery {
+    /// Restrict the list to the workspaces started from this task.
+    pub task_id: Option<Uuid>,
 }
 
 pub async fn get_workspaces(
     State(deployment): State<DeploymentImpl>,
+    Query(query): Query<ListWorkspacesQuery>,
 ) -> Result<ResponseJson<ApiResponse<Vec<Workspace>>>, ApiError> {
     let pool = &deployment.db().pool;
-    let workspaces = Workspace::fetch_all(pool).await?;
+    let workspaces = match query.task_id {
+        Some(task_id) => Workspace::fetch_all_by_task_id(pool, task_id).await?,
+        None => Workspace::fetch_all(pool).await?,
+    };
     Ok(ResponseJson(ApiResponse::success(workspaces)))
 }
 
@@ -59,26 +68,6 @@ pub async fn update_workspace(
     let updated = Workspace::find_by_id(pool, workspace.id)
         .await?
         .ok_or(WorkspaceError::WorkspaceNotFound)?;
-
-    if (request.archived.is_some() || request.name.is_some())
-        && let Ok(client) = deployment.remote_client()
-    {
-        let ws = updated.clone();
-        let name = request.name.clone();
-        let archived = request.archived;
-        let stats =
-            diff_stream::compute_diff_stats(&deployment.db().pool, deployment.git(), &ws).await;
-        tokio::spawn(async move {
-            remote_sync::sync_workspace_to_remote(
-                &client,
-                ws.id,
-                name.map(Some),
-                archived,
-                stats.as_ref(),
-            )
-            .await;
-        });
-    }
 
     if is_archiving && let Err(e) = deployment.container().archive_workspace(workspace.id).await {
         tracing::error!("Failed to archive workspace {}: {}", workspace.id, e);
@@ -154,28 +143,6 @@ pub async fn delete_workspace(
             }),
         )
         .await;
-
-    if query.delete_remote {
-        if let Ok(client) = deployment.remote_client() {
-            match client.delete_workspace(workspace_id).await {
-                Ok(()) => {
-                    tracing::info!("Deleted remote workspace for {}", workspace_id);
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "Failed to delete remote workspace for {}: {}",
-                        workspace_id,
-                        e
-                    );
-                }
-            }
-        } else {
-            tracing::debug!(
-                "Remote client not available, skipping remote deletion for {}",
-                workspace_id
-            );
-        }
-    }
 
     WorkspaceManager::spawn_workspace_deletion_cleanup(deletion_context, query.delete_branches);
 

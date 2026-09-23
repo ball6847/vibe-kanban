@@ -19,6 +19,7 @@ use db::{
         },
         repo::Repo,
         session::{CreateSession, Session, SessionError},
+        task::{Task, TaskStatus},
         workspace::{Workspace, WorkspaceError},
         workspace_repo::WorkspaceRepo,
     },
@@ -239,6 +240,20 @@ pub trait ContainerService {
         // Skip notification if process was intentionally killed by user
         if matches!(ctx.execution_process.status, ExecutionProcessStatus::Killed) {
             return;
+        }
+
+        // Automation: a finished agent run leaves its task in review.
+        if matches!(
+            ctx.execution_process.run_reason,
+            ExecutionProcessRunReason::CodingAgent
+        ) && matches!(
+            ctx.execution_process.status,
+            ExecutionProcessStatus::Completed
+        ) && let Some(task_id) = ctx.workspace.task_id
+            && let Err(error) =
+                Task::update_status(&self.db().pool, task_id, TaskStatus::InReview).await
+        {
+            tracing::warn!("Failed to move task {task_id} to in_review: {error}");
         }
 
         let workspace_name = ctx
@@ -1137,6 +1152,15 @@ pub trait ContainerService {
         executor_action: &ExecutorAction,
         run_reason: &ExecutionProcessRunReason,
     ) -> Result<ExecutionProcess, ContainerError> {
+        // Automation: an agent run means the task is being worked on.
+        if matches!(run_reason, ExecutionProcessRunReason::CodingAgent)
+            && let Some(task_id) = workspace.task_id
+            && let Err(error) =
+                Task::update_status(&self.db().pool, task_id, TaskStatus::InProgress).await
+        {
+            tracing::warn!("Failed to move task {task_id} to in_progress: {error}");
+        }
+
         // Create new execution process record
         // Capture current HEAD per repository as the "before" commit for this execution
         let repositories =

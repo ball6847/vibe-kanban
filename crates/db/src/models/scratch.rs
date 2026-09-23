@@ -183,6 +183,8 @@ pub struct DraftWorkspaceData {
     #[serde(default)]
     pub linked_issue: Option<DraftWorkspaceLinkedIssue>,
     #[serde(default)]
+    pub task_id: Option<Uuid>,
+    #[serde(default)]
     pub attachments: Vec<DraftWorkspaceAttachment>,
 }
 

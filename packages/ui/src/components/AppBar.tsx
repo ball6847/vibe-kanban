@@ -48,18 +48,23 @@ interface AppBarProps {
   hosts?: AppBarHost[];
   onPairHostClick?: () => void;
   activeHostId?: string | null;
-  onCreateProject: () => void;
+  onCreateProject?: () => void;
   onExportClick?: () => void;
   onWorkspacesClick: () => void;
   onHostClick?: (hostId: string, status: AppBarHostStatus) => void;
   showWorkspacesButton?: boolean;
-  onProjectClick: (projectId: string) => void;
-  onProjectsDragEnd: (result: DropResult) => void;
+  onProjectClick?: (projectId: string) => void;
+  onProjectsDragEnd?: (result: DropResult) => void;
   isSavingProjectOrder?: boolean;
   isWorkspacesActive: boolean;
   isExportActive?: boolean;
   activeProjectId: string | null;
   isSignedIn?: boolean;
+  /**
+   * Renders the local projects section (list + create) without requiring a
+   * cloud session. Cloud sign-in stays the trigger when this is false.
+   */
+  projectsEnabled?: boolean;
   isLoadingProjects?: boolean;
   onSignIn?: () => void;
   onHoverStart?: () => void;
@@ -153,8 +158,8 @@ type AppBarSectionItem =
       projects: AppBarProject[];
       activeProjectId: string | null;
       isSavingProjectOrder?: boolean;
-      onProjectClick: (projectId: string) => void;
-      onProjectsDragEnd: (result: DropResult) => void;
+      onProjectClick?: (projectId: string) => void;
+      onProjectsDragEnd?: (result: DropResult) => void;
     };
 
 function getStandardAppBarButtonClassName({
@@ -212,6 +217,7 @@ export function AppBar({
   isExportActive = false,
   activeProjectId,
   isSignedIn,
+  projectsEnabled = false,
   isLoadingProjects,
   onSignIn,
   onHoverStart,
@@ -283,7 +289,7 @@ export function AppBar({
 
   const projectSectionItems: AppBarSectionItem[] = [];
 
-  if (!isSignedIn) {
+  if (!isSignedIn && !projectsEnabled) {
     projectSectionItems.push({
       key: 'kanban-cta',
       kind: 'kanban-cta',
@@ -308,11 +314,11 @@ export function AppBar({
     });
   }
 
-  if (isSignedIn) {
+  if ((isSignedIn || projectsEnabled) && onCreateProject) {
     projectSectionItems.push({
       key: 'create-project',
       kind: 'icon-button',
-      label: 'Create project',
+      label: t('appBar.projects.create'),
       icon: PlusIcon,
       onClick: onCreateProject,
       className: 'bg-primary text-muted hover:text-normal hover:bg-tertiary',
@@ -442,7 +448,7 @@ export function AppBar({
         );
       case 'project-list':
         return (
-          <DragDropContext onDragEnd={item.onProjectsDragEnd}>
+          <DragDropContext onDragEnd={item.onProjectsDragEnd ?? (() => {})}>
             <Droppable
               droppableId="app-bar-projects"
               direction="vertical"
@@ -473,7 +479,7 @@ export function AppBar({
                           <Tooltip content={project.name} side="right">
                             <button
                               type="button"
-                              onClick={() => item.onProjectClick(project.id)}
+                              onClick={() => item.onProjectClick?.(project.id)}
                               className={cn(
                                 appBarItemBaseClassName,
                                 'cursor-grab',

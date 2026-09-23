@@ -28,7 +28,6 @@
           "browser-testing",
           "issue-management",
           "reviewing-code",
-          "remote-access",
           {
             "group": "Supported Coding Agents",
             "expanded": true,
@@ -67,23 +66,6 @@
         ]
       },
       {
-        "group": "Cloud",
-        "pages": [
-          "cloud/index",
-          "cloud/getting-started",
-          "cloud/authentication",
-          "cloud/organizations",
-          "cloud/team-members",
-          "cloud/projects",
-          "cloud/issues",
-          "cloud/kanban-board",
-          "cloud/list-view",
-          "cloud/filtering",
-          "cloud/customisation",
-          "cloud/troubleshooting"
-        ]
-      },
-      {
         "group": "Settings",
         "pages": [
           "settings/index",
@@ -95,8 +77,6 @@
             ]
           },
           "settings/projects-repositories",
-          "settings/organization-settings",
-          "settings/remote-projects",
           "settings/agent-configurations",
           "settings/mcp-servers"
         ]
@@ -166,10 +146,6 @@
     {
       "source": "/workspaces/preview",
       "destination": "/browser-testing"
-    },
-    {
-      "source": "/remote-control",
-      "destination": "/remote-access"
     }
   ],
   "footer": {

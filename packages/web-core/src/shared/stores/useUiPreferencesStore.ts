@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { create } from 'zustand';
 import type { RepoAction } from '@vibe/ui/components/RepoCard';
-import type { IssuePriority } from 'shared/remote-types';
+import type { IssuePriority } from '@/shared/types/issuePriority';
 
 export const RIGHT_MAIN_PANEL_MODES = {
   CHANGES: 'changes',

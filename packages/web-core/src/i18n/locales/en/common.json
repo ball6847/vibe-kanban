@@ -492,6 +492,34 @@
         "title": "Invite your team",
         "content": "We've automatically created a personal organization and initial project so you can get started with Vibe Kanban. Export your cloud data before shutdown."
       }
+    },
+    "task": {
+      "createWorkspace": "Create workspace",
+      "openWorkspace": "Open workspace",
+      "details": "Task details",
+      "close": "Close",
+      "edit": "Edit",
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "title": "Title",
+      "description": "Description",
+      "editTitle": "Edit title",
+      "editDescription": "Edit description",
+      "workspace": "Workspace",
+      "noWorkspace": "No workspace yet"
+    },
+    "filter": {
+      "placeholder": "Filter tasks…",
+      "status": "Filter by status",
+      "all": "All",
+      "clear": "Clear filter"
+    },
+    "bulk": {
+      "selected": "{{count}} selected",
+      "move": "Move forward",
+      "delete": "Delete",
+      "clear": "Clear"
     }
   },
   "createMode": {
@@ -542,6 +570,9 @@
       "tooltip": "Sign in to view projects",
       "title": "Kanban Boards",
       "description": "Sign in to organise your coding agents with kanban boards."
+    },
+    "projects": {
+      "create": "Create project"
     }
   },
   "askQuestion": {
