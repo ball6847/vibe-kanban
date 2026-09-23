@@ -26,6 +26,11 @@ import { groupWorkspacesByTaskId } from './taskWorkspaceLinkModel';
 import { TaskDetailPanel } from './TaskDetailPanel';
 import { canTransitionTaskStatus } from './taskStatus';
 import {
+  pruneSelection,
+  selectedTasks,
+  toggleSelection,
+} from './taskSelection';
+import {
   EMPTY_TASK_FILTERS,
   filterTasks,
   isFiltering,
@@ -59,6 +64,7 @@ export function LocalKanbanBoard({
   const [actionError, setActionError] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_TASK_FILTERS);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
@@ -84,6 +90,11 @@ export function LocalKanbanBoard({
   }, [appNavigation, projectId, selectedTaskId]);
 
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
+
+  // A deleted task must not stay selected (the bulk bar hides itself).
+  useEffect(() => {
+    setSelectedIds((previous) => pruneSelection(previous, tasks));
+  }, [tasks]);
 
   useEffect(() => {
     let cancelled = false;
@@ -203,6 +214,22 @@ export function LocalKanbanBoard({
     }
 
     appNavigation.goToProjectIssue(projectId, taskId);
+  };
+
+  const handleBulkMove = async () => {
+    const moving = selectedTasks(tasks, selectedIds);
+    setSelectedIds([]);
+    for (const task of moving) {
+      await handleMove(task, 1);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = [...selectedIds];
+    setSelectedIds([]);
+    for (const id of ids) {
+      await handleDelete(id);
+    }
   };
 
   const handleCreateWorkspace = async (task: Task) => {
@@ -361,6 +388,37 @@ export function LocalKanbanBoard({
           </button>
         </div>
       ) : null}
+      {selectedIds.length > 0 ? (
+        <div className="flex shrink-0 items-center gap-half px-base pt-half">
+          <span className="text-xs text-low">
+            {t('kanban.bulk.selected', { count: selectedIds.length })}
+          </span>
+          <button
+            type="button"
+            data-testid="kanban-bulk-move"
+            onClick={() => void handleBulkMove()}
+            className="rounded-sm border border-border px-half py-half text-xs text-normal"
+          >
+            {t('kanban.bulk.move')}
+          </button>
+          <button
+            type="button"
+            data-testid="kanban-bulk-delete"
+            onClick={() => void handleBulkDelete()}
+            className="rounded-sm border border-border px-half py-half text-xs text-low"
+          >
+            {t('kanban.bulk.delete')}
+          </button>
+          <button
+            type="button"
+            data-testid="kanban-bulk-clear"
+            onClick={() => setSelectedIds([])}
+            className="rounded-sm px-half py-half text-xs text-low"
+          >
+            {t('kanban.bulk.clear')}
+          </button>
+        </div>
+      ) : null}
       <div className="flex min-h-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 snap-x snap-mandatory gap-base overflow-x-auto p-base sm:snap-none">
           {COLUMNS.map((column) => {
@@ -495,6 +553,18 @@ export function LocalKanbanBoard({
                             className="mt-half flex items-center justify-end gap-half"
                             onClick={(event) => event.stopPropagation()}
                           >
+                            <input
+                              type="checkbox"
+                              data-testid={`task-select-${task.id}`}
+                              aria-label={task.title}
+                              checked={selectedIds.includes(task.id)}
+                              onChange={() =>
+                                setSelectedIds((previous) =>
+                                  toggleSelection(previous, task.id)
+                                )
+                              }
+                              className="mr-auto"
+                            />
                             <button
                               type="button"
                               aria-label={`Move ${task.title} back`}

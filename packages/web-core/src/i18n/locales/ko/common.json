@@ -500,6 +500,12 @@
       "status": "상태로 필터",
       "all": "전체",
       "clear": "필터 지우기"
+    },
+    "bulk": {
+      "selected": "{{count}}개 선택됨",
+      "move": "앞으로 이동",
+      "delete": "삭제",
+      "clear": "지우기"
     }
   },
   "createMode": {

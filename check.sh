@@ -374,9 +374,12 @@ print((json.load(sys.stdin).get('data') or {}).get('task_id') or '')" 2>/dev/nul
       else NO "filtering narrows the board (cards: $REMAIN)" 5; fi
       ab click "[data-testid=kanban-filter-clear]" >/dev/null 2>&1
     else NO "filtering narrows the board" 5; fi
-    # --- bulk: select both cards and move them
-    if [ "$(ab_count "[data-testid=task-select-$TID]")" = "1" ] && [ "$(ab_count "[data-testid=kanban-bulk-move]")" = "1" ]; then
+    # --- bulk: the bar only exists once something is selected, so select first
+    if [ "$(ab_count "[data-testid=task-select-$TID]")" = "1" ]; then
       ab click "[data-testid=task-select-$TID]" >/dev/null 2>&1
+      sleep 1
+    fi
+    if [ "$(ab_count "[data-testid=kanban-bulk-move]")" = "1" ]; then
       ab click "[data-testid=task-select-$TID2]" >/dev/null 2>&1
       sleep 1
       ab click "[data-testid=kanban-bulk-move]" >/dev/null 2>&1

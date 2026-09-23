@@ -500,6 +500,12 @@
       "status": "Filtrar por estado",
       "all": "Todas",
       "clear": "Borrar filtro"
+    },
+    "bulk": {
+      "selected": "{{count}} seleccionadas",
+      "move": "Avanzar",
+      "delete": "Eliminar",
+      "clear": "Limpiar"
     }
   },
   "createMode": {

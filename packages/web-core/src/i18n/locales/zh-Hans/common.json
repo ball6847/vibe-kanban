@@ -500,6 +500,12 @@
       "status": "按状态筛选",
       "all": "全部",
       "clear": "清除筛选"
+    },
+    "bulk": {
+      "selected": "已选择 {{count}} 项",
+      "move": "向前移动",
+      "delete": "删除",
+      "clear": "清除"
     }
   },
   "createMode": {

@@ -514,6 +514,12 @@
       "status": "Filter by status",
       "all": "All",
       "clear": "Clear filter"
+    },
+    "bulk": {
+      "selected": "{{count}} selected",
+      "move": "Move forward",
+      "delete": "Delete",
+      "clear": "Clear"
     }
   },
   "createMode": {

@@ -500,6 +500,12 @@
       "status": "ステータスで絞り込む",
       "all": "すべて",
       "clear": "フィルターを解除"
+    },
+    "bulk": {
+      "selected": "{{count}} 件選択中",
+      "move": "次へ移動",
+      "delete": "削除",
+      "clear": "解除"
     }
   },
   "createMode": {
