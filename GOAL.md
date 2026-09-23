@@ -86,25 +86,25 @@ gate locates it by that label and submits with the composer's `Create` button.
 
 ## Milestones (small steps; commit each one)
 
-- [ ] **M1 — selection plumbing.** Extend `projectSearchSchema` with `task`, expose it from
+- [x] **M1 — selection plumbing.** Extend `projectSearchSchema` with `task`, expose it from
   `useCurrentKanbanRouteState`, make the card a clickable region that sets/clears the param, add
   `Escape` to close. Verify: gate section 2 + `?task=` in the browser.
-- [ ] **M2 — detail panel.** New `packages/web-core/src/pages/kanban/TaskDetailPanel.tsx` rendered by the
+- [x] **M2 — detail panel.** New `packages/web-core/src/pages/kanban/TaskDetailPanel.tsx` rendered by the
   board when a task is selected: title/description (inline edit), status, delete, close button; all
   strings in `kanban.task.*` for the 7 locales. Verify: gate section 3 + screenshot.
-- [ ] **M3 — workspace section + 1:1.** Panel section showing the linked workspace with open/create;
+- [x] **M3 — workspace section + 1:1.** Panel section showing the linked workspace with open/create;
   migration adding a partial unique index on `workspace.task_id`; create-from-task reuses the existing
   workspace. Verify: gate section 4 + the e2e create-twice check + screenshot.
-- [ ] **M4 — automated status.** Restore `Task::update_status` around a pure, unit-tested transition
+- [x] **M4 — automated status.** Restore `Task::update_status` around a pure, unit-tested transition
   function, then hook it: execution start → `in_progress`, execution finish → `in_review`, PR merge →
   `done` (forward-only, never regressing `done`/`cancelled`). Verify: gate section 5 + e2e status poll.
-- [ ] **M5 — filters.** Text + status filtering in a pure model (`taskFilters.ts`) with tests, wired to
+- [x] **M5 — filters.** Text + status filtering in a pure model (`taskFilters.ts`) with tests, wired to
   `kanban-filter-input` / `kanban-filter-clear`. Verify: gate section 6 + e2e narrowing.
-- [ ] **M6 — bulk actions.** Per-card selection checkbox (`task-select-<id>`), a bulk bar with move and
+- [x] **M6 — bulk actions.** Per-card selection checkbox (`task-select-<id>`), a bulk bar with move and
   delete, pure selection model with tests. Verify: gate section 6 + e2e multi-move.
-- [ ] **M7 — keyboard.** `Escape` (close panel), `c` (focus new-task input), `/` (focus filter) via a
+- [x] **M7 — keyboard.** `Escape` (close panel), `c` (focus new-task input), `/` (focus filter) via a
   small hook; documented in `docs/local-projects-kanban.md`. Verify: gate section 6 + e2e keypress.
-- [ ] **M8 — quality pass.** `pnpm run format`, docs updated (task panel, 1:1, status automation,
+- [x] **M8 — quality pass.** `pnpm run format`, docs updated (task panel, 1:1, status automation,
   shortcuts), evidence `NOTES.md` + screenshots committed, full `./check.sh` green, tree clean apart
   from the loop's own log file.
 
@@ -140,10 +140,10 @@ gate locates it by that label and submits with the composer's `Create` button.
 
 ## Baseline (measured before M1)
 
-Measured on the commit that introduced this spec: **fast `SCORE 58 / MAX 226` in 106 s** (full mode adds
-the lint/i18n/build sections, so its `MAX` is higher — always compare `SCORE` against that run's `MAX`).
-Sections 1, 7, 11, 12 and the board/card/create basics already score; every M1+ check fails with a
-diagnostic naming what is missing.
+Baseline when this spec was written: **fast `SCORE 58 / MAX 226` in 106 s**. Every milestone is now
+implemented and the gate is green end to end: **fast `261/261` (192 s)** and **full `282/282` (324 s),
+exit 0**. Always compare `SCORE` against that run's `MAX`, since fast mode skips the lint, i18n and
+build sections.
 
 ## Operating notes (for an unattended run)
 

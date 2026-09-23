@@ -46,3 +46,11 @@ submit -> workspace created, opened and linked (`GET /api/workspaces?task_id=`).
   `aria-label="Markdown editor"` and submits via the composer's `Create` button.
 - Gate fixes: UUID parsing no longer accepts `/workspaces/create` as a workspace (it captured `c`),
   and the prompt probe reads `textContent` (the editor is a Lexical contenteditable).
+
+## Complete (2026-09-23)
+
+Full gate green: **282/282, exit 0 (324 s)**; fast mode 261/261 (192 s), up from a 58/226 baseline.
+Task UX restored: clickable cards with a URL-backed selection, a detail panel that edits and deletes,
+the 1:1 task/workspace section backed by a partial unique index, automatic forward-only statuses from
+the execution lifecycle, and the board ergonomics (filters, bulk actions, keyboard). Evidence with
+screenshots is committed under `.context/evidence/task-ux/`.
