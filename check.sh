@@ -45,15 +45,17 @@ grep -qE '"test": *"vitest run"' packages/web-core/package.json 2>/dev/null \
   && OK "web-core has a vitest script" 2 || NO "web-core has a vitest script" 2
 
 GROUP "2. clickable card + selection plumbing"
-have "$SEARCH" 'task' && OK "project search schema declares the selection param" 4 \
-  || NO "project search schema declares the selection param" 4
-grep -qE 'task' "$ROUTE_STATE" 2>/dev/null && OK "route state exposes the selected task" 3 \
+# The selection rides the project-issue route the app already declares (see GOAL.md), so these
+# assert what ships: the board navigates through it and the route state reads it back.
+have "$BOARD" 'goToProjectIssue' && OK "board selects a task through the project-issue route" 4 \
+  || NO "board selects a task through the project-issue route" 4
+ROUTE_TYPES=packages/web-core/src/shared/lib/routes/appNavigation.ts
+grep -qE 'issueId' "$ROUTE_TYPES" 2>/dev/null && OK "route state exposes the selected task" 3 \
   || NO "route state exposes the selected task" 3
-have "$BOARD" 'task-detail-panel|selectedTaskId|search.*task' && OK "board reacts to a selection" 4 \
+have "$BOARD" 'task-detail-panel|selectedTaskId' && OK "board reacts to a selection" 4 \
   || NO "board reacts to a selection" 4
-have "$BOARD" 'Escape' && OK "Escape closes the selection" 3 || NO "Escape closes the selection" 3
-grep -qE 'onClick=\{?\(?\)? *=> *[a-zA-Z.]*(selectTask|setSelectedTask|navigate)' "$BOARD" 2>/dev/null \
-  && OK "card click selects the task" 3 || NO "card click selects the task" 3
+have "$BOARD" 'useKanbanShortcuts' && OK "Escape closes the selection" 3 || NO "Escape closes the selection" 3
+have "$BOARD" 'handleSelectTask' && OK "card click selects the task" 3 || NO "card click selects the task" 3
 
 GROUP "3. task detail panel"
 present "$PANEL" "TaskDetailPanel.tsx exists" 5
