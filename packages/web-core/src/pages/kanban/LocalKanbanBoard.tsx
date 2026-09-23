@@ -24,6 +24,7 @@ import {
 } from './localKanbanModel';
 import { groupWorkspacesByTaskId } from './taskWorkspaceLinkModel';
 import { TaskDetailPanel } from './TaskDetailPanel';
+import { canTransitionTaskStatus } from './taskStatus';
 
 interface LocalKanbanBoardProps {
   projectId: string;
@@ -124,6 +125,11 @@ export function LocalKanbanBoard({
 
   const handleMove = async (task: Task, direction: -1 | 1) => {
     const next = stepStatus(task.status, direction);
+    // The automation refuses to walk a task backwards; the board matches it so a
+    // manual move cannot put the card somewhere the services would not follow.
+    if (!next || !canTransitionTaskStatus(task.status, next)) {
+      return;
+    }
     if (!next || busyTaskId) return;
     setBusyTaskId(task.id);
     try {

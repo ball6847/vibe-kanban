@@ -321,10 +321,10 @@ print((json.load(sys.stdin).get('data') or {}).get('task_id') or '')" 2>/dev/nul
           MINE=""
           for _ in $(seq 1 30); do
             MINE=$(task_status)
-            case "$MINE" in in_progress|in_review|done) break ;; esac
+            case "$MINE" in inprogress|inreview|done) break ;; esac
             sleep 2
           done
-          case "$MINE" in in_progress|in_review|done) OK "task status advanced by itself (${MINE})" 8 ;;
+          case "$MINE" in inprogress|inreview|done) OK "task status advanced by itself (${MINE})" 8 ;;
             *) NO "task status advanced by itself (still '${MINE:-unknown}')" 8 ;; esac
           # --- open the workspace from the panel
           ab_open "http://localhost:$UI/projects/$PID/issues/$TID" >/dev/null
