@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Goal check: cloud-style local projects rail (see GOAL.md).
+# Goal check: link tasks to workspaces (see GOAL.md).
 # Usage:    ./check.sh              exit 0 = all criteria met; prints "SCORE: <n>"
-#           CHECK_FAST=1 ./check.sh skip build + lint + i18n-regression (static/type only)
-# Env:      BACKEND_PORT / FRONTEND_PORT override live-check ports.
+#           CHECK_FAST=1 ./check.sh skip build/lint/heavy steps (never the browser e2e)
+# Env:      BACKEND_PORT / FRONTEND_PORT override detection.
 # Exit 0 only when SCORE == MAX.
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
@@ -10,7 +10,7 @@ ROOT=$PWD
 START_TS=$(date +%s)
 FAST=0
 [ -n "${CHECK_FAST:-}" ] && FAST=1
-LOGDIR=/tmp/vibe-rail-check
+LOGDIR=/tmp/vibe-link-check
 mkdir -p "$LOGDIR"
 
 SCORE=0
@@ -20,166 +20,223 @@ GROUP() { printf '\n== %s ==\n' "$1"; }
 OK()   { printf '  [ok]   %-58s +%s\n' "$1" "$2"; SCORE=$((SCORE + $2)); MAX=$((MAX + $2)); }
 NO()   { printf '  [MISS] %-58s  (0/%s)\n' "$1" "$2"; FAILED+=("$1"); MAX=$((MAX + $2)); }
 SKIP() { printf '  [skip] %-58s (fast mode)\n' "$1"; }
-
-have()     { grep -qE "$2" "$1" 2>/dev/null; }
-present()  { [ -e "$1" ] && OK "$2" "$3" || NO "$2" "$3"; }
-absent()   { [ -e "$1" ] && NO "$2" "$3" || OK "$2" "$3"; }
-# run <label> <points> <command...>
+have()    { grep -qE "$2" "$1" 2>/dev/null; }
+present() { [ -e "$1" ] && OK "$2" "$3" || NO "$2" "$3"; }
+absent()  { [ -e "$1" ] && NO "$2" "$3" || OK "$2" "$3"; }
 run() {
   local label=$1 pts=$2; shift 2
   local log="$LOGDIR/$(printf '%s' "$label" | tr -c 'a-zA-Z0-9' '-').log"
   if "$@" >"$log" 2>&1; then OK "$label" "$pts"; else NO "$label (see $log)" "$pts"; fi
 }
 
-WEB_CORE_NAV=packages/web-core/src/shared/lib/routes/appNavigation.ts
-LOCAL_NAV=packages/local-web/src/app/navigation/AppNavigation.ts
-APPBAR=packages/ui/src/components/AppBar.tsx
-SHELL_LAYOUT=packages/web-core/src/shared/components/ui-new/containers/SharedAppLayout.tsx
-RAIL_MODEL=packages/web-core/src/pages/kanban/localProjectsRailModel.ts
-RAIL_TEST=packages/web-core/src/pages/kanban/localProjectsRailModel.test.ts
+DB_WORKSPACE=crates/db/src/models/workspace.rs
+SRV_CREATE=crates/server/src/routes/workspaces/create.rs
+TYPES=shared/types.ts
+BOARD=packages/web-core/src/pages/kanban/LocalKanbanBoard.tsx
+LINK_MODEL=packages/web-core/src/pages/kanban/taskWorkspaceLinkModel.ts
+EVIDENCE=.context/evidence/task-workspace-link
 
-GROUP "1. navigation model (web-core)"
-have "$WEB_CORE_NAV" "kind: 'projects'"            && OK "AppDestination has { kind: 'projects' }" 4 || NO "AppDestination has { kind: 'projects' }" 4
-have "$WEB_CORE_NAV" 'goToProjects'                && OK "AppNavigation interface declares goToProjects" 4 || NO "AppNavigation interface declares goToProjects" 4
-# 'projects' must NOT join ProjectDestinationKind (it drives kanban issue/workspace resolution).
-PDK=$(sed -n '/^type ProjectDestinationKind =/,/;/p' "$WEB_CORE_NAV" 2>/dev/null)
-case "$PDK" in
-  *"'projects'"*) NO "ProjectDestinationKind left unpolluted by 'projects'" 3 ;;
-  "")             NO "ProjectDestinationKind found and unpolluted" 3 ;;
-  *)              OK "ProjectDestinationKind left unpolluted by 'projects'" 3 ;;
-esac
+GROUP "1. backend write path"
+have "$DB_WORKSPACE" 'task_id'                        && OK "workspace.rs mentions task_id" 3 || NO "workspace.rs mentions task_id" 3
+# The INSERT's task_id column already exists; the real signal is that the create fn no longer
+# binds the literal None there.
+CREATE_BODY=$(awk '/pub async fn create\(/,/^    }/' "$DB_WORKSPACE" 2>/dev/null)
+if printf '%s' "$CREATE_BODY" | grep -q 'Option::<Uuid>::None'; then
+  NO "Workspace::create binds a real task_id (still literal None)" 5
+elif printf '%s' "$CREATE_BODY" | grep -q 'task_id'; then
+  OK "Workspace::create binds a real task_id" 5
+else
+  NO "Workspace::create binds a real task_id (create fn not found)" 5
+fi
+have "$SRV_CREATE" 'task_id'                          && OK "create route threads task_id" 5 || NO "create route threads task_id" 5
+if grep -qE 'pub task_id: Option<Uuid>' "$SRV_CREATE" crates/db/src/models/requests.rs crates/server/src/routes/workspaces/mod.rs 2>/dev/null; then
+  OK "request struct declares task_id: Option<Uuid>" 4
+else NO "request struct declares task_id: Option<Uuid>" 4; fi
 
-GROUP "2. local-web navigation"
-have "$LOCAL_NAV" 'goToProjects'                   && OK "goToProjects implemented" 4 || NO "goToProjects implemented" 4
-have "$LOCAL_NAV" "case 'projects':"               && OK "forward map: case 'projects'" 4 || NO "forward map: case 'projects'" 4
-have "$LOCAL_NAV" "case '/_app/projects':"         && OK "reverse map: case '/_app/projects'" 4 || NO "reverse map: case '/_app/projects'" 4
+GROUP "2. API + generated types"
+python3 - <<'PYT' && OK "CreateAndStartWorkspaceRequest carries task_id" 5 || NO "CreateAndStartWorkspaceRequest carries task_id" 5
+import re, sys
+src = open('shared/types.ts').read()
+m = re.search(r'export type CreateAndStartWorkspaceRequest = \{(.*?)\};', src, re.S)
+sys.exit(0 if m and 'task_id' in m.group(1) else 1)
+PYT
+have packages/web-core/src/shared/lib/api.ts 'task_id' && OK "workspaces API surfaces task_id queries" 3 \
+  || NO "workspaces API surfaces task_id queries" 3
 
-GROUP "3. pure rail model"
-present "$RAIL_MODEL" "localProjectsRailModel.ts exists" 3
-have "$RAIL_MODEL" 'toAppBarProjects'              && OK "exports toAppBarProjects" 3 || NO "exports toAppBarProjects" 3
-have "$RAIL_MODEL" 'resolveActiveProjectId'        && OK "exports resolveActiveProjectId" 3 || NO "exports resolveActiveProjectId" 3
-present "$RAIL_TEST"  "localProjectsRailModel.test.ts exists" 2
+GROUP "3. frontend actions"
+have "$BOARD" 'task-create-workspace-'                 && OK "board has a create-workspace action" 5 || NO "board has a create-workspace action" 5
+have "$BOARD" 'task-open-workspace-'                   && OK "board renders linked workspaces" 5 || NO "board renders linked workspaces" 5
+have "$BOARD" 'task-card-'                             && OK "task cards carry a test id" 3 || NO "task cards carry a test id" 3
+have "$BOARD" 'goToWorkspace'                          && OK "clicking a link opens the workspace" 4 || NO "clicking a link opens the workspace" 4
+grep -rq "workspace-create-submit" packages/web-core/src packages/local-web/src 2>/dev/null \
+  && OK "create flow exposes a submit hook" 3 || NO "create flow exposes a submit hook" 3
+grep -rn "task_id" packages/web-core/src/features/create-mode packages/web-core/src/shared/lib/workspaceCreateState.ts 2>/dev/null | grep -q task_id \
+  && OK "create flow carries task_id into the request" 4 || NO "create flow carries task_id into the request" 4
+present "$LINK_MODEL" "taskWorkspaceLinkModel.ts exists" 3
 
-GROUP "4. AppBar local mode"
-APPBAR_HITS=$(grep -o 'projectsEnabled' "$APPBAR" 2>/dev/null | wc -l | tr -d ' ')
-if [ "${APPBAR_HITS:-0}" -ge 3 ]; then OK "projectsEnabled prop wired ($APPBAR_HITS refs)" 4
-else NO "projectsEnabled prop wired (got ${APPBAR_HITS:-0} refs, need >=3)" 4; fi
-have "$APPBAR" '!isSignedIn && !projectsEnabled'   && OK "cloud CTA gated by !projectsEnabled" 4 || NO "cloud CTA gated by !projectsEnabled" 4
-have "$APPBAR" '\(isSignedIn \|\| projectsEnabled\)' && OK "create button gated by projectsEnabled" 4 || NO "create button gated by projectsEnabled" 4
-
-GROUP "5. shell wiring"
-have "$SHELL_LAYOUT" 'localProjectsApi'            && OK "SharedAppLayout fetches local projects" 4 || NO "SharedAppLayout fetches local projects" 4
-have "$SHELL_LAYOUT" 'projectsEnabled'             && OK "passes projectsEnabled to AppBar" 3 || NO "passes projectsEnabled to AppBar" 3
-have "$SHELL_LAYOUT" 'projects={\[\]}'             && NO "placeholder projects={[]} removed" 3 || OK "placeholder projects={[]} removed" 3
-have "$SHELL_LAYOUT" 'activeProjectId = null'      && NO "activeProjectId no longer hardcoded null" 3 || OK "activeProjectId no longer hardcoded null" 3
-have "$SHELL_LAYOUT" 'onProjectClick'              && OK "passes onProjectClick" 3 || NO "passes onProjectClick" 3
-have "$SHELL_LAYOUT" 'onCreateProject'             && OK "passes onCreateProject" 3 || NO "passes onCreateProject" 3
-have "$SHELL_LAYOUT" 'Row-1 filler'                && OK "grid row-1 filler marker kept" 2 || NO "grid row-1 filler marker kept" 2
-have "$SHELL_LAYOUT" 'NavbarContainer'             && NO "deleted NavbarContainer not resurrected" 2 || OK "deleted NavbarContainer not resurrected" 2
-
-GROUP "6. i18n key in all 7 locales"
-python3 - <<'PY' && OK "appBar.projects.create in all locales" 4 || NO "appBar.projects.create in all locales" 4
+GROUP "4. i18n keys in all 7 locales"
+python3 - <<'PY' && OK "kanban.task.createWorkspace + openWorkspace in all locales" 4 || NO "kanban.task.* keys in all locales" 4
 import json, pathlib, sys
 base = pathlib.Path('packages/web-core/src/i18n/locales')
+need = ('createWorkspace', 'openWorkspace')
 missing = []
 for loc in sorted(p.name for p in base.iterdir() if p.is_dir()):
-    f = base / loc / 'common.json'
     try:
-        d = json.load(open(f))
+        d = json.load(open(base/loc/'common.json'))
     except Exception:
         missing.append(f'{loc}:unreadable'); continue
-    if not isinstance(d.get('appBar', {}).get('projects', {}), dict) or 'create' not in d.get('appBar', {}).get('projects', {}):
-        missing.append(loc)
+    task = (d.get('kanban') or {}).get('task') or {}
+    for k in need:
+        if k not in task:
+            missing.append(f'{loc}:{k}')
 if missing:
     print('missing:', ', '.join(missing), file=sys.stderr); sys.exit(1)
 PY
 
-GROUP "7. no cloud regression"
-absent shared/remote-types.ts            "shared/remote-types.ts still deleted" 2
-absent crates/remote                     "crates/remote still deleted" 2
-absent packages/remote-web               "packages/remote-web still deleted" 2
-if grep -qE '@tanstack/(electric-db-collection|react-db)' packages/local-web/package.json packages/web-core/package.json 2>/dev/null; then
-  NO "Electric deps stay removed" 2
-else OK "Electric deps stay removed" 2; fi
-if grep -rqE "from 'shared/remote-types'|from \"shared/remote-types\"" packages/*/src --include='*.ts' --include='*.tsx' 2>/dev/null; then
-  NO "no source imports shared/remote-types" 2
-else OK "no source imports shared/remote-types" 2; fi
+GROUP "5. no cloud regression / no new deps"
+absent shared/remote-types.ts "shared/remote-types.ts still deleted" 2
+absent crates/remote          "crates/remote still deleted" 2
+absent packages/remote-web    "packages/remote-web still deleted" 2
+grep -qE '@tanstack/(electric-db-collection|react-db)' packages/web-core/package.json packages/local-web/package.json 2>/dev/null \
+  && NO "Electric deps stay removed" 2 || OK "Electric deps stay removed" 2
 
-GROUP "8. type checks"
-run "pnpm run web-core:check"  5 pnpm run web-core:check
-run "pnpm run local-web:check" 5 pnpm run local-web:check
-run "pnpm run ui:check"        5 pnpm run ui:check
+GROUP "6. type checks"
+run "pnpm run web-core:check"  4 pnpm run web-core:check
+run "pnpm run local-web:check" 4 pnpm run local-web:check
+run "pnpm run ui:check"        3 pnpm run ui:check
 
-GROUP "9. format (goal-owned files only)"
-# Repo-wide format drift on main is pre-existing (26 unformatted web-core files, unchanged by
-# this branch). Only the files this goal touches must be formatted, to keep the diff surgical.
-if [ "$FAST" = 1 ]; then
-  SKIP "local-web lint"; SKIP "ui lint"; SKIP "prettier --check (goal files)"
-else
-  run "pnpm run local-web:lint" 4 pnpm run local-web:lint
-  run "pnpm run ui:lint"        4 pnpm run ui:lint
-  F_CORE=""; F_WEB=""; F_UI=""
-  for f in shared/lib/routes/appNavigation.ts pages/kanban/localProjectsRailModel.ts \
-           pages/kanban/localProjectsRailModel.test.ts i18n/locales/en/common.json; do
-    [ -f "packages/web-core/src/$f" ] && F_CORE="$F_CORE src/$f"
+GROUP "7. browser e2e via agent-browser"
+AB=(agent-browser --session vibe-goal-check)
+ab()      { timeout 90 "${AB[@]}" "$@" 2>&1 | grep -v 'invalid config file'; }
+ab_open() { ab open "$1" --args "--no-sandbox" | tail -1; }
+ab_eval() { ab eval "$1" | tail -1 | sed 's/^"//; s/"$//'; }
+ab_url()  { ab get url | tail -1; }
+port_from_file() { [ -f /tmp/vibe-kanban/vibe-kanban.port ] && python3 -c "import json;print(json.load(open('/tmp/vibe-kanban/vibe-kanban.port')).get('main_port') or '')" 2>/dev/null; }
+UI="${FRONTEND_PORT:-3003}"
+PORT=""; FE=""
+for _ in $(seq 1 18); do
+  PORT=""
+  for cand in "${BACKEND_PORT:-}" "$(port_from_file)" 3004; do
+    [ -n "$cand" ] && [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://localhost:$cand/api/health")" = "200" ] && PORT=$cand && break
   done
-  [ -f "$LOCAL_NAV" ] && F_WEB="src/app/navigation/AppNavigation.ts"
-  [ -f "$APPBAR" ] && F_UI="src/components/AppBar.tsx"
-  if [ -z "$F_CORE" ]; then NO "prettier: goal files (web-core) — none created yet" 3
-  else run "prettier: goal files (web-core)" 3 pnpm --filter @vibe/web-core exec prettier --check $F_CORE; fi
-  if [ -z "$F_WEB" ]; then NO "prettier: goal files (local-web) — none created yet" 2
-  else run "prettier: goal files (local-web)" 2 pnpm --filter @vibe/local-web exec prettier --check $F_WEB; fi
-  if [ -z "$F_UI" ]; then NO "prettier: goal files (ui) — none created yet" 1
-  else run "prettier: goal files (ui)" 1 pnpm --filter @vibe/ui exec prettier --config ../../packages/local-web/.prettierrc.json --check $F_UI; fi
-fi
-
-GROUP "10. build + i18n regression"
-if [ "$FAST" = 1 ]; then
-  SKIP "check-i18n regression"; SKIP "unused i18n keys vs baseline"; SKIP "legacy path guard"; SKIP "local-web build"
+  FE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 4 "http://localhost:$UI/")
+  [ -n "$PORT" ] && [ "$FE" = "200" ] && break
+  sleep 5
+done
+if [ -z "$PORT" ] || [ "$FE" != "200" ]; then
+  NO "dev stack reachable (start 'pnpm run dev', api=$PORT fe=$FE)" 30
 else
-  run "check-i18n regression" 4 env GITHUB_BASE_REF="${GITHUB_BASE_REF:-main}" ./scripts/check-i18n.sh
-  # The repo already carries 104 unused keys on main (remote-era leftovers). This is a
-  # REGRESSION gate: do not increase the count; prune keys you orphan.
-  UNUSED_BASELINE=104
-  UNUSED_N=$(node scripts/check-unused-i18n-keys.mjs 2>/dev/null | grep -oE 'Found [0-9]+ unused' | grep -oE '[0-9]+' | head -1)
-  if [ -z "$UNUSED_N" ]; then OK "unused i18n keys at/below baseline (none)" 4
-  elif [ "$UNUSED_N" -le "$UNUSED_BASELINE" ]; then OK "unused i18n keys <= baseline ($UNUSED_N/$UNUSED_BASELINE)" 4
-  else NO "unused i18n keys <= baseline ($UNUSED_N > $UNUSED_BASELINE)" 4; fi
-  run "legacy path guard" 2 ./scripts/check-legacy-frontend-paths.sh
-  # CI builds local-web with an 8 GB heap (.github/workflows/test.yml); the default heap OOMs here.
-  run "local-web build (CI heap)" 5 env NODE_OPTIONS=--max-old-space-size=8192 pnpm --filter @vibe/local-web run build
+  API="http://localhost:$PORT"
+  STAMP=$(date +%s)
+  REPO=/tmp/vibe-link-e2e-repo
+  if [ ! -d "$REPO/.git" ]; then
+    mkdir -p "$REPO"; git -C "$REPO" init -q -b main
+    printf '# link e2e\n' >"$REPO/README.md"
+    git -C "$REPO" add -A >/dev/null 2>&1
+    git -C "$REPO" -c user.email=check@local -c user.name=check commit -qm init >/dev/null 2>&1
+  fi
+  RID=$(curl -s --max-time 20 "$API/api/repos" | python3 -c "
+import json,sys
+for r in json.load(sys.stdin).get('data') or []:
+    if r.get('display_name')=='vibe-link-e2e': print(r['id']); break" 2>/dev/null)
+  if [ -z "$RID" ]; then
+    RID=$(curl -s --max-time 20 -X POST "$API/api/repos" -H 'Content-Type: application/json' \
+      -d "{\"path\":\"$REPO\",\"display_name\":\"vibe-link-e2e\"}" | python3 -c "
+import json,sys
+print((json.load(sys.stdin).get('data') or {}).get('id') or '')" 2>/dev/null)
+  fi
+  PID=$(curl -s --max-time 20 -X POST "$API/api/projects" -H 'Content-Type: application/json' \
+    -d "{\"name\":\"Link E2E $STAMP\"}" | python3 -c "import json,sys;print((json.load(sys.stdin).get('data') or {}).get('id') or '')" 2>/dev/null)
+  TID=$(curl -s --max-time 20 -X POST "$API/api/tasks" -H 'Content-Type: application/json' \
+    -d "{\"project_id\":\"$PID\",\"title\":\"Link e2e task $STAMP\",\"description\":\"seeded by check.sh\"}" \
+    | python3 -c "import json,sys;print((json.load(sys.stdin).get('data') or {}).get('id') or '')" 2>/dev/null)
+  if [ -z "$RID" ] || [ -z "$PID" ] || [ -z "$TID" ]; then
+    NO "e2e seed (repo/project/task via API)" 30
+  else
+    OK "e2e seed (repo, project, task)" 2
+    mkdir -p "$EVIDENCE"
+    ab_open "http://localhost:$UI/projects/$PID" >/dev/null
+    ab wait "[data-testid=task-card-$TID]" >/dev/null 2>&1
+    if [ "$(ab_eval "document.querySelectorAll('[data-testid=task-create-workspace-$TID]').length")" = "1" ]; then
+      OK "task card offers 'Create workspace'" 3
+      ab click "[data-testid=task-create-workspace-$TID]" >/dev/null 2>&1
+      sleep 1
+      case "$(ab_url)" in */workspaces/create*) OK "create action opens the create flow" 4 ;;
+        *) NO "create action opens the create flow (url: $(ab_url))" 4 ;; esac
+      PREFILL=$(ab_eval "document.querySelector('[data-testid=workspace-create-prompt]')?.value || ''")
+      case "$PREFILL" in *"Link e2e task $STAMP"*) OK "create flow is prefilled from the task" 4 ;;
+        *) NO "create flow is prefilled from the task (got '${PREFILL:0:40}')" 4 ;; esac
+      ab click "[data-testid=workspace-create-submit]" >/dev/null 2>&1
+      WSID=""
+      for _ in $(seq 1 30); do
+        U=$(ab_url)
+        case "$U" in */workspaces/*) WSID=$(printf '%s' "$U" | sed -n 's#.*/workspaces/\([0-9a-f-]*\).*#\1#p'); [ -n "$WSID" ] && break ;; esac
+        sleep 2
+      done
+      if [ -n "$WSID" ]; then
+        OK "submitting creates the workspace and opens it" 6
+        LINK=$(curl -s --max-time 10 "$API/api/workspaces?task_id=$TID" | python3 -c "
+import json,sys
+d=json.load(sys.stdin).get('data') or []
+print(d[0]['id'] if d else '')" 2>/dev/null)
+        if [ "$LINK" = "$WSID" ]; then OK "workspace is linked to the task (API)" 6
+        else NO "workspace is linked to the task (api='${LINK:-none}' ui='$WSID')" 6; fi
+        ab_open "http://localhost:$UI/projects/$PID" >/dev/null
+        ab wait "[data-testid=task-card-$TID]" >/dev/null 2>&1
+        if [ "$(ab_eval "document.querySelectorAll('[data-testid=task-open-workspace-$WSID]').length")" = "1" ]; then
+          OK "task card shows the linked workspace" 4
+          ab click "[data-testid=task-open-workspace-$WSID]" >/dev/null 2>&1
+          sleep 2
+          case "$(ab_url)" in *"/workspaces/$WSID"*) OK "clicking the link opens the workspace" 3 ;;
+            *) NO "clicking the link opens the workspace (url: $(ab_url))" 3 ;; esac
+        else NO "task card shows the linked workspace" 4; fi
+        ab screenshot "$EVIDENCE/e2e-create-from-task.png" >/dev/null 2>&1
+        [ -f "$EVIDENCE/e2e-create-from-task.png" ] && OK "e2e screenshot written" 2 || NO "e2e screenshot written" 2
+        curl -s -X DELETE "$API/api/workspaces/$WSID" >/dev/null 2>&1
+      else NO "submitting creates the workspace and opens it (url: $(ab_url))" 6; fi
+    else NO "task card offers 'Create workspace'" 3; fi
+    curl -s -X DELETE "$API/api/projects/$PID" >/dev/null 2>&1
+    [ -n "$RID" ] && curl -s -X DELETE "$API/api/repos/$RID" >/dev/null 2>&1
+    # close our session so the next run launches a browser with the right args
+    ab close >/dev/null 2>&1
+  fi
 fi
 
-GROUP "11. unit tests (pure rail model)"
+GROUP "8. committed e2e evidence"
+present "$EVIDENCE/NOTES.md" "evidence NOTES.md committed" 2
+if ls "$EVIDENCE"/*.png >/dev/null 2>&1; then OK "evidence screenshots present" 2; else NO "evidence screenshots present" 2; fi
+
+
+GROUP "9. lint + format (goal files)"
+if [ "$FAST" = 1 ]; then SKIP "local-web lint"; SKIP "ui lint"; SKIP "prettier (goal files)"
+else
+  run "pnpm run local-web:lint" 3 pnpm run local-web:lint
+  run "pnpm run ui:lint"        3 pnpm run ui:lint
+  FILES=""
+  for f in src/pages/kanban/LocalKanbanBoard.tsx src/pages/kanban/taskWorkspaceLinkModel.ts; do
+    [ -f "packages/web-core/$f" ] && FILES="$FILES $f"
+  done
+  if [ -z "$FILES" ]; then NO "prettier: goal files (web-core)" 3
+  else run "prettier: goal files (web-core)" 3 pnpm --filter @vibe/web-core exec prettier --check $FILES; fi
+fi
+
+GROUP "10. sqlx caches, rust build, i18n + build gates"
+run "cargo check (excl. tauri)" 8 cargo check --workspace --exclude vibe-kanban-tauri
+run "prepare-db:check (sqlx caches)" 6 pnpm run prepare-db:check
+if [ "$FAST" = 1 ]; then SKIP "check-i18n"; SKIP "unused i18n keys"; SKIP "legacy guard"; SKIP "local-web build"
+else
+  run "check-i18n regression" 3 env GITHUB_BASE_REF="${GITHUB_BASE_REF:-main}" ./scripts/check-i18n.sh
+  UNUSED_N=$(node scripts/check-unused-i18n-keys.mjs 2>/dev/null | grep -oE 'Found [0-9]+ unused' | grep -oE '[0-9]+' | head -1)
+  if [ -z "${UNUSED_N:-}" ] || [ "$UNUSED_N" -le 104 ]; then OK "unused i18n keys <= 104 baseline (${UNUSED_N:-0})" 3
+  else NO "unused i18n keys <= 104 (got $UNUSED_N)" 3; fi
+  run "legacy path guard" 2 ./scripts/check-legacy-frontend-paths.sh
+  run "local-web build (CI heap)" 4 env NODE_OPTIONS=--max-old-space-size=8192 pnpm --filter @vibe/local-web run build
+fi
+
+GROUP "11. unit tests (pure link logic)"
 if grep -qE '"test": *"vitest run"' packages/web-core/package.json 2>/dev/null; then
   run "pnpm --filter @vibe/web-core test" 6 pnpm --filter @vibe/web-core test
-else
-  NO "web-core has a 'vitest run' test script" 6
-fi
-
-GROUP "12. live check (self-skips when nothing is running)"
-port_from_file() { [ -f /tmp/vibe-kanban/vibe-kanban.port ] && python3 -c "import json;print(json.load(open('/tmp/vibe-kanban/vibe-kanban.port')).get('main_port') or '')" 2>/dev/null; }
-health_on()  { [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://localhost:$1/api/health" 2>/dev/null)" = "200" ]; }
-API_PORT=""
-for cand in "${BACKEND_PORT:-}" "$(port_from_file)" 3004; do
-  [ -n "$cand" ] && health_on "$cand" && API_PORT=$cand && break
-done
-if [ -z "$API_PORT" ]; then
-  echo "  [skip] no backend reachable — live checks cost no points"
-else
-  OK "backend health on :$API_PORT" 2
-  PROJECTS_JSON=$(curl -s --max-time 8 "http://localhost:$API_PORT/api/projects" 2>/dev/null)
-  if printf '%s' "$PROJECTS_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if isinstance(d.get('data'), list) else 1)" 2>/dev/null; then
-    OK "GET /api/projects returns a list" 4
-    N=$(printf '%s' "$PROJECTS_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('data') or []))" 2>/dev/null || echo 0)
-    echo "  [info] local projects visible to the rail: ${N:-0} (create one via the UI to eyeball the rail)"
-  else
-    NO "GET /api/projects returns a list" 4
-  fi
-  UI_PORT="${FRONTEND_PORT:-3003}"
-  FE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://localhost:$UI_PORT/" 2>/dev/null)
-  if [ "$FE" = "200" ]; then OK "frontend serves on :$UI_PORT" 2; else NO "frontend serves on :$UI_PORT (got ${FE:-none})" 2; fi
-fi
+else NO "web-core has a 'vitest run' test script" 6; fi
 
 ELAPSED=$(( $(date +%s) - START_TS ))
 printf '\n========================================\n'
@@ -189,6 +246,10 @@ printf 'MAX: %s\n' "$MAX"
 TIMINGS=notes/check-timings.tsv
 mkdir -p notes
 printf '%s\t%s\t%s\n' "$(date -Is)" "$ELAPSED" "$SCORE" >> "$TIMINGS"
+printf 'NOTE: the cargo gates above rebuild into target/, which can interrupt a running
+'
+printf '      `pnpm run dev` (cargo watch). Restart the dev stack before the next e2e run.
+'
 if [ "${#FAILED[@]}" -gt 0 ]; then
   printf 'Failing checks (%s):\n' "${#FAILED[@]}"
   for f in "${FAILED[@]}"; do printf '  - %s\n' "$f"; done

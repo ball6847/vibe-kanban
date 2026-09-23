@@ -1,9 +1,10 @@
 # IMPROVEMENTS — backlog (only after `SCORE == MAX`)
 
-- Drag-to-reorder rail projects (cloud parity via remote `sort_order`). Explicit non-goal until
-  the base goal is green.
-- Repo-wide: 26 unformatted `web-core` files on `main` (`pnpm --filter @vibe/web-core run format`).
-- Repo-wide: 104 unused i18n keys on `main` (remote-era leftovers).
-- `scripts/check-unused-i18n-keys.mjs` prints a `find:` error for the deleted `packages/remote-web`.
-- `README.md` has no mention of the local projects feature or its rail.
-- `.pi-loop-log.jsonl` is tracked but is a runtime log (gitignore it and `git rm --cached`).
+- The MCP `create_task_attempt` tool still builds a cloud `linked_issue` from
+  `/api/remote/issues/{id}`, a route deleted with the remote feature; its workspace therefore gets
+  no local `task_id`. Adapt it to local tasks or retire the tool.
+- `Task.parent_workspace_id` remains unwritable (the reverse column); `workspace.task_id` is the
+  single source of truth by design.
+- `linked_issue` on the start request is now dead weight locally — remove it once nothing reads it.
+- Repo-wide: 26 unformatted `web-core` files on `main`; 104 unused i18n keys on `main`; tracked
+  `.pi-loop-log.jsonl`.

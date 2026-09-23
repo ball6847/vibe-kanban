@@ -1,17 +1,14 @@
-# ASSUMPTIONS — cloud-style local projects rail
+# ASSUMPTIONS — link tasks to workspaces
 
-Inherits the baseline assumptions in GOAL.md (see its "Assumptions" section). Additions:
+Inherits GOAL.md's assumptions. Additions from M1:
 
-1. `goToProjects`/`{ kind: 'projects' }` are placed next to `goToExport` in the union and
-   interface (grouping "leaf" pages together) — ordering only, no behavioural impact.
-2. `ProjectDestinationKind` deliberately excludes `'projects'`: that type drives kanban
-   issue/workspace resolution, and the index page has no project id.
-3. Pre-existing red gates (26 unformatted files, 104 unused keys, 8 GB build heap) are handled
-   by `check.sh` scoping/baselining rather than by changing repo-wide state, to keep the diff
-   surgical.
-4. `AppBar` interpolates `project.color` into `hsl(${color})` and `hsl(${color} / 0.2)`, so the
-   rail model must emit full `H S% L%` triples. A bare hue ("210") silently drops the active
-   background (found live in M6); the unit test asserts the triple shape.
-5. A long-running Vite dev server can hold a stale module graph after edits to exported types
-   (`appNavigation.ts`); a dev-server restart is required before live checks, and its HMR errors
-   are not evidence of a broken build (`vite build` is part of the gate).
+1. `workspace.task_id` is the single source of truth for the link; the reverse column
+   `tasks.parent_workspace_id` stays unused to avoid dual-write drift.
+2. The start request carries `task_id: Option<Uuid>`; PR-created and MCP-created workspaces pass
+   `None` because neither is started from a local task.
+3. `GET /api/workspaces` only filters when `task_id` is present, so every existing caller keeps
+   its current behaviour.
+4. The new `fetch_all_by_task_id` query is part of the SQLx offline cache; any change to it
+   requires `pnpm run prepare-db` again.
+5. The dev server rebuilds itself through `cargo watch`, so the curl proof required waiting for
+   `/api/health` to answer 200 before asserting.

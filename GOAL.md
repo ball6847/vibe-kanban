@@ -1,183 +1,161 @@
-# GOAL — Cloud-style local projects rail
+# GOAL — Link tasks to workspaces (cloud parity)
 
 ## Refined objective
 
-Give the local projects feature the **same navigation UX the cloud feature had**, inside the
-de-remoted (local-only) app:
+Restore the task ↔ workspace linkage the obsolete cloud feature had, locally:
 
-1. The AppBar rail shows the **list of local projects** (from `GET /api/projects`).
-2. Clicking a rail project **navigates to that project's board**.
-3. The **active project is highlighted** while its board is open.
-4. The rail has a **Create project** affordance that works without cloud sign-in.
-5. The navigation model gains a **`projects` destination** so the rail can also reach the
-   local `/_app/projects` index page.
+1. **Create a workspace from a task** — the task card offers it, the create flow opens
+   prefilled with the task's title/description, and the resulting workspace records `task_id`.
+2. **The task card shows its linked workspace(s)** and opens them on click.
+3. **The link is durable and queryable** — `GET /api/workspaces?task_id=` returns it, and it
+   survives a reload (no client-only state).
+4. **Verification is e2e through the `agent-browser` CLI** (not just unit/type checks).
 
-This is a **wiring/UX-integration** goal. It reconnects an existing local feature (built by
-`feat/projects`, already in `main`) to the existing shell. It does NOT rebuild the projects
-feature, and it does NOT re-introduce any cloud code.
+This is a *restore parity* goal: the columns, the read endpoint and the TS types already exist;
+the write path and the UI were lost with the cloud feature.
 
-## Evidence — why the UX is currently disconnected
+## Evidence — why a task is a dead end today
 
 | Gap | Evidence |
 | --- | --- |
-| No destination for the projects index | `packages/web-core/src/shared/lib/routes/appNavigation.ts` — `AppDestination` has `{ kind: 'project'; projectId }` but nothing for `/_app/projects`; no `goToProjects()` exists anywhere. |
-| Rail hardcoded to empty | `packages/web-core/src/shared/components/ui-new/containers/SharedAppLayout.tsx` — `projects={[]}`, `const activeProjectId = null;`, no `onProjectClick` / `onCreateProject`. |
-| Rail gated on cloud sign-in | `packages/ui/src/components/AppBar.tsx` — `if (!isSignedIn) { projectSectionItems.push({ kind: 'kanban-cta', ... }) }`; the create button is `if (isSignedIn && onCreateProject)`. Locally `isSignedIn` is always false, so the rail renders the "Sign in to view projects" popover. |
-| Project shapes differ | `AppBarProject = { id, name, color }` (`packages/ui/src/components/AppBar.tsx`); local `Project = { id, name, default_agent_working_dir, remote_project_id, created_at, updated_at }` (`shared/types.ts\`) — no `color`. |
-| Existing local UX is page-only | `packages/web-core/src/pages/kanban/LocalProjectsList.tsx` fetches `localProjectsApi.list()` and calls `appNavigation.goToProject(id)`; it is reachable only by typing `/projects`. |
+| Nothing can ever set the link | `crates/db/src/models/workspace.rs:311-323` — `Workspace::create` inserts a hardcoded `Option::<Uuid>::None` for the `task_id` column |
+| The create API cannot carry a task | `shared/types.ts:409` — `CreateAndStartWorkspaceRequest = { name, repos, linked_issue, executor_config, prompt, attachment_ids }`; the only linkage field is `linked_issue: { remote_project_id, issue_id }`, which points at the deleted cloud |
+| The reverse link is unwritable | `crates/db/src/models/task.rs:43` — `UpdateTask = { title, description, status }`, no `parent_workspace_id`, although the column exists |
+| No UI affordance | `packages/web-core/src/pages/kanban/LocalKanbanBoard.tsx` — create / move / rename / delete only; no workspace reference anywhere |
+| The read path existed but ignored the filter | `workspacesApi.getAll(taskId)` calls `GET /api/workspaces?task_id=` (`api.ts`) and `Workspace.task_id` is in `shared/types.ts`, but `get_workspaces` took no query params and returned every workspace (fixed in M1) |
+| Stub routes | `/projects/:pid/issues/:iid/workspaces/create/:draftId` render `LocalProjectKanban` (the board) — a dead end |
 
 ## Scope
 
 ### In scope
-1. `packages/web-core/src/shared/lib/routes/appNavigation.ts` — add destination + interface method.
-2. `packages/local-web/src/app/navigation/AppNavigation.ts` — implement forward + reverse mapping.
-3. `packages/web-core/src/pages/kanban/localProjectsRailModel.ts` (**new**) — pure helpers + tests.
-4. `packages/ui/src/components/AppBar.tsx` — local-projects mode (no cloud-sign-in gate).
-5. `packages/web-core/src/shared/components/ui-new/containers/SharedAppLayout.tsx` — data + wiring.
-6. i18n keys for any new user-visible string, in **all 7 locales**.
-7. Docs: `docs/local-projects-kanban.md`.
-8. Tooling needed to verify the above (web-core unit-test runner).
+1. `crates/db/src/models/workspace.rs` — `Workspace::create` binds a real `task_id`.
+2. `crates/server/src/routes/workspaces/create.rs` (+ its request struct) — accept and persist
+   `task_id` on `POST /api/workspaces/start`.
+3. `shared/types.ts` regenerated (`pnpm run generate-types`) so the request carries `task_id`.
+4. `.sqlx` offline caches updated for changed queries (`pnpm run prepare-db`).
+5. `LocalKanbanBoard.tsx` — a **Create workspace** action per task that opens the local create
+   flow prefilled from the task and carries the task id.
+6. `LocalKanbanBoard.tsx` — the task card lists its linked workspace(s) and opens them.
+7. Create-flow plumbing so the start request includes `task_id` (`useCreateModeState` /
+   `workspaceCreateState` / `workspacesApi.createAndStart`).
+8. i18n keys in all 7 locales; docs; tests; e2e evidence.
 
 ### Non-goals (do NOT do)
-- No cloud/remote code: no `crates/remote`, no `packages/remote-web`, no Electric, no
-  `shared/remote-types.ts`. These stay deleted.
-- No backend/Rust changes. This goal is frontend-only.
-- No re-adding cloud sign-in, organizations, billing, notifications, or their UI.
-- No redesign of `LocalProjectsList` / `LocalKanbanBoard` / the board, and no change to the
-  local projects REST API.
-- No drag-to-reorder of rail projects (cloud had it via remote `sort_order`). Allowed later as
-  an improvement item, never as a blocker.
-- Do not "fix" unrelated pre-existing issues; note them in `IMPROVEMENTS.md` instead.
-- Relay/device-control, workspaces, hosts, terminals, git — untouched.
+- No cloud code: no `crates/remote`, `packages/remote-web`, Electric, `shared/remote-types.ts`.
+- `linked_issue` stays as an unused nullable field — removing it is separate cleanup.
+- `Task.parent_workspace_id` stays unused: **`workspace.task_id` is the single source of truth**.
+- No per-task repo/executor draft parity on the stub `workspaces/create/$draftId` routes; they may
+  redirect to `/workspaces/create` at most. Full draft parity is backlog only.
+- No change to the rail, the workspaces list/sidebar, the workspace runtime, or the board's
+  existing task features (create/move/rename/description/delete).
+- No multi-workspace management UI (no linking an *existing* workspace to a task).
+- No new runtime dependencies.
 
 ## Measurable completion criteria
 
-`bash check.sh` exits 0 **and** prints `SCORE: N/N`. Hard gates (all must hold):
+`bash check.sh` exits 0 **and** prints `SCORE: N/N`. Hard gates:
 
-1. Every scored structural check in `check.sh` passes.
-2. `pnpm run local-web:check`, `web-core:check`, `ui:check` exit 0.
-3. `pnpm run local-web:lint` and `pnpm run ui:lint` exit 0.
-4. The **goal-owned files** are prettier-clean (`check.sh` scopes prettier to them — see
-   assumption 8; repo-wide format drift on `main` is not this goal's problem).
-5. `GITHUB_BASE_REF=main ./scripts/check-i18n.sh` exits 0, and the repo-wide unused-i18n-key
-   count does **not exceed the 104 baseline** (`check.sh` compares the count; prune any key you
-   orphan).
-6. `./scripts/check-legacy-frontend-paths.sh` exits 0 and `local-web` builds with
-   `NODE_OPTIONS=--max-old-space-size=8192` (CI's heap; the default heap OOMs at ~12.6k modules).
-7. `pnpm --filter @vibe/web-core test` exits 0 (unit tests for the pure rail model).
-8. The rail behaves per the objective, verified live in a browser (see M6).
+1. Every scored structural check passes (see Mandated names).
+2. `pnpm run prepare-db:check` exits 0 (SQLx offline caches in sync with the code).
+3. `cargo check --workspace --exclude vibe-kanban-tauri` exits 0.
+4. `local-web:check`, `web-core:check`, `ui:check` exit 0.
+5. `local-web:lint`, `ui:lint` exit 0; goal-owned files prettier-clean.
+6. `check-i18n` exits 0, unused i18n keys stay ≤ 104, legacy-path guard exits 0, and `local-web`
+   builds with `NODE_OPTIONS=--max-old-space-size=8192`.
+7. `pnpm --filter @vibe/web-core test` exits 0.
+8. **`agent-browser` e2e passes**: create-from-task → workspace linked → card shows it → open.
+9. Screenshots from that run are committed under `.context/evidence/task-workspace-link/`.
 
-The loop is **endless**: once `SCORE: N/N`, keep raising quality via `IMPROVEMENTS.md`.
-Declare `LOOP_DONE:` only when the check is green.
+The loop is endless: once `SCORE: N/N`, keep improving via `IMPROVEMENTS.md`. Declare
+`LOOP_DONE:` only when the check is green.
 
-## Mandated names (use exactly these; the check script greps for them)
+## Mandated names (the gate greps for these — use them exactly)
 
-| Thing | Exact name |
+| Thing | Exact |
 | --- | --- |
-| Destination kind | `{ kind: 'projects' }` |
-| Navigation method | `goToProjects(transition?: NavigationTransition): void` |
-| AppBar prop | `projectsEnabled?: boolean` |
-| Index route id | `/_app/projects` (file `packages/local-web/src/routes/_app.projects.tsx`) |
-| Pure helper module | `packages/web-core/src/pages/kanban/localProjectsRailModel.ts` |
-| Helper exports | `toAppBarProjects`, `resolveActiveProjectId` |
-| New i18n key | `appBar.projects.create` (namespace `common`, all 7 locales) |
-| Shell filler marker | comment `Row-1 filler` in `SharedAppLayout.tsx` (keep it — it fixes a real grid bug) |
+| Request field (Rust) | `task_id: Option<Uuid>` in the start/request struct |
+| Request field (TS) | `task_id` in `CreateAndStartWorkspaceRequest` |
+| Task card root | `data-testid="task-card-<taskId>"` |
+| Create-workspace action | `data-testid="task-create-workspace-<taskId>"` |
+| Linked-workspace control | `data-testid="task-open-workspace-<workspaceId>"` on each linked workspace |
+| Create-flow prompt field | `data-testid="workspace-create-prompt"` |
+| Create-flow submit | `data-testid="workspace-create-submit"` |
+| i18n keys (`common`) | `kanban.task.createWorkspace`, `kanban.task.openWorkspace` |
+| Open handler | `appNavigation.goToWorkspace(workspaceId)` |
+| Evidence dir | `.context/evidence/task-workspace-link/` |
+| Gate browser session | `agent-browser --session vibe-goal-check` |
 
 ## Milestone roadmap
 
-Each milestone is one commit, Conventional Commits style, and must leave the repo
-type-checking. Run `bash check.sh` at the end of each milestone and record `SCORE` in
-`PROGRESS.md`.
+One commit per milestone, Conventional Commits, repo left type-checking.
 
-- **M0 — Baseline.** Confirm branch and that `pnpm install` is done. Run `bash check.sh`,
-  record the starting `SCORE` and the failing checks in `PROGRESS.md`. Reset
-  `PROGRESS.md` / `IMPROVEMENTS.md` / `ASSUMPTIONS.md` for this goal (the previous goal's text
-  is preserved in git history).
-- **M1 — Navigation model.** In `appNavigation.ts`: add `| { kind: 'projects' }` to
-  `AppDestination` and `goToProjects` to the navigation interface. Do **not** add it to
-  `ProjectDestinationKind` (that type drives kanban issue/workspace resolution). Verify
-  `pnpm run web-core:check`.
-- **M2 — local-web navigation.** In `AppNavigation.ts`: `destinationToLocalTarget` returns
-  `{ to: '/_app/projects' }` for `kind: 'projects'`; `resolveLocalDestinationFromPath` returns
-  `{ kind: 'projects' }` for `case '/_app/projects':`; implement
-  `goToProjects: (transition) => navigateTo({ kind: 'projects' }, transition)`. Verify
-  `pnpm run local-web:check`.
-- **M3 — Pure rail model + tests.** Add `localProjectsRailModel.ts` with
-  `toAppBarProjects(projects: Project[]): AppBarProject[]` (deterministic colour derived from
-  the project id — no randomness) and `resolveActiveProjectId(destination: AppDestination | null): string | null`
-  (returns the project id for `kind: 'project'` and the project sub-route kinds, else `null`).
-  Wire a runner: add `vitest` to `packages/web-core` devDependencies and
-  `"test": "vitest run"` to its scripts; write `localProjectsRailModel.test.ts` covering
-  mapping, colour determinism, and active-id resolution. Verify `pnpm --filter @vibe/web-core test`.
-- **M4 — AppBar local mode.** Add `projectsEnabled?: boolean` to `AppBarProps`. Gate the
-  cloud CTA with `if (!isSignedIn && !projectsEnabled)` and the create button with
-  `if ((isSignedIn || projectsEnabled) && onCreateProject)`. Add the `appBar.projects.create`
-  key (English: "Create project") to **all** locale files, and use it for the local create
-  label instead of a bare literal. Verify `ui:check`, `ui:lint`, and the i18n scripts.
-- **M5 — Shell wiring.** In `SharedAppLayout.tsx`: fetch local projects
-  (`localProjectsApi.list()`, same pattern as `LocalProjectsList`), map with
-  `toAppBarProjects`, pass `projects`, `projectsEnabled`, `activeProjectId` (derive from the
-  current destination — no hardcoded `null`), `onProjectClick` →
-  `appNavigation.goToProject(id)`, and `onCreateProject` → `appNavigation.goToProjects()`.
-  Remove the `projects={[]}` placeholder. Verify `local-web:check` + `web-core:check`.
-- **M6 — Live verification.** With `pnpm run dev` up (UI on `FRONTEND_PORT`, API from
-  `/tmp/vibe-kanban/vibe-kanban.port`), use the browser harness to prove: the rail lists real
-  local projects, clicking one opens its board, the active project is highlighted (including on
-  a project sub-route), and the create button opens the create flow. Save screenshots +
-  `NOTES.md` under `.context/evidence/local-projects-rail/`.
-- **M7 — Refresh correctness.** Creating a project from either surface makes it appear in the
-  rail without a manual reload (shared query/cache invalidation or an explicit refetch), and
-  deleting a project removes it from the rail. Verified live; record evidence.
-- **M8 — Quality pass.** `pnpm run format` (+ `pnpm --filter @vibe/ui run format`), update
-  `docs/local-projects-kanban.md` with the rail UX, full `bash check.sh` green including the
-  live section, `git status` clean.
+- **M0 — Baseline.** `pnpm install` done; `bash check.sh`; record `SCORE` + failing checks in
+  `PROGRESS.md`; reset `PROGRESS.md` / `IMPROVEMENTS.md` / `ASSUMPTIONS.md` for this goal.
+- **M1 — Backend write path.** Add `task_id: Option<Uuid>` to the create request; thread it
+  through `create_workspace` into `CreateWorkspace`; make `Workspace::create` bind it instead of
+  the literal `None`. Run `pnpm run prepare-db` (caches) and `pnpm run prepare-db:check`.
+  Prove with curl: starting a workspace with `task_id` makes
+  `GET /api/workspaces?task_id=<task>` return it; a start without `task_id` still yields `null`.
+- **M2 — Types.** `pnpm run generate-types`; confirm `CreateAndStartWorkspaceRequest` carries
+  `task_id`; `local-web:check` + `web-core:check` green.
+- **M3 — Create from task.** In `LocalKanbanBoard.tsx` add the per-task **Create workspace**
+  action (mandated test ids) that navigates to the local create flow with the task's title and
+  description as the prompt, carrying the task id; the create flow submits it as `task_id`.
+  The flow must be submittable **without further input** — a repo is preselected by default, so
+  the e2e never picks one (it only clicks submit).
+- **M4 — Show and open the link.** The task card lists its linked workspaces (resolve them from
+  `workspacesApi.getAll(task.id)` / the workspace data the board already has) with the mandated
+  test id and `goToWorkspace` on click; a task with no workspace shows nothing extra.
+- **M5 — agent-browser e2e.** Run the flow with the CLI (session `vibe-goal-check`), save
+  screenshots + `NOTES.md` under the evidence dir, and commit them. `check.sh` section 10 does
+  the same flow automatically — make it pass.
+- **M6 — Pure logic + tests.** Extract testable helpers next to the board (e.g.
+  `taskWorkspaceLinkModel.ts`: build the create prompt from a task; pick the linked workspaces
+  for a task id) and cover them with vitest.
+- **M7 — Docs.** `docs/local-projects-kanban.md` (plus a short `docs/task-workspace-link.md` if
+  it earns its place): the create-from-task flow, the link column, what is deliberately absent.
+- **M8 — Quality pass.** Format goal files, full `bash check.sh` green, clean tree, evidence
+  committed.
 
 ## Quality standards
 
-- **Tests:** pure logic lives in `localProjectsRailModel.ts` and is covered by vitest.
-  Interactive behaviour is proven live (M6/M7) with screenshots, not asserted in code.
-- **Docs:** `docs/local-projects-kanban.md` describes the rail: what it lists, click behaviour,
-  active state, create flow, and the fact that it is local-only (no sign-in required).
-- **Git:** one commit per milestone, Conventional Commits (`feat(projects): …`,
-  `refactor(projects): …`, `test(projects): …`, `docs(projects): …`). Never commit with a red
-  `check.sh` unless the milestone explicitly restores green later.
-- **i18n:** every user-visible string goes through `t()`; new keys land in all 7 locales
-  (`en`, `es`, `fr`, `ja`, `ko`, `zh-Hans`, `zh-Hant`); `check-unused-i18n-keys.mjs` must pass,
-  so **remove** keys you orphan instead of leaving them.
-- **Style:** no `any`, no non-null assertions to silence the compiler, no dead code, no
-  commented-out blocks, no new dependencies beyond `vitest` (M3).
-- **Reuse:** render rail projects with the existing `project-list` / `project-card` kinds in
-  `AppBar`; do not build a parallel component.
+- **Tests:** pure logic in `taskWorkspaceLinkModel.ts` covered by vitest; the interactive claim is
+  proven by the `agent-browser` e2e, not asserted in code.
+- **Docs:** the flow, the single-source-of-truth decision (`workspace.task_id`), and the
+  deliberately unchanged pieces.
+- **Git:** one commit per milestone; `feat(tasks): …`, `feat(server): …`, `test(tasks): …`,
+  `docs(tasks): …`.
+- **i18n:** every user-visible string through `t()` with keys in all 7 locales
+  (`en, es, fr, ja, ko, zh-Hans, zh-Hant`); never leave an orphaned key.
+- **Style:** no `any`, no non-null assertions to silence the compiler, no dead code, no new deps.
+- **SQLx:** every changed query must be re-prepared so `prepare-db:check` stays green.
 
 ## Assumptions
 
-1. Work happens on the `drop-remote-support` branch (local projects + the de-remoted shell).
-2. Locally `isSignedIn` is effectively always `false`; the cloud CTA code path stays in
-   `AppBar` (shared with other shells) but must be bypassed when `projectsEnabled` is true.
-3. `AppBarProject.color` is required by the shared component; local projects have no colour, so
-   one is derived deterministically from the project id.
-4. `AppBar` lives in `packages/ui` and is shared, so its cloud behaviour must keep working when
-   `projectsEnabled` is not set.
-5. The dev stack is `pnpm run dev` → Vite UI on `FRONTEND_PORT` (3003 as observed) and the API
-   on the port in `/tmp/vibe-kanban/vibe-kanban.port` (`main_port`, 3004 as observed). The
-   `check.sh` live section self-skips when nothing is reachable and costs no points.
-6. `main` exists locally (needed by `scripts/check-i18n.sh`).
-7. No Rust/backend change is required; `cargo check --workspace --exclude vibe-kanban-tauri`
-   is green and `vibe-kanban-tauri` cannot build here (system GTK/glib missing) — that
-   pre-existing environment failure is out of scope.
-8. **Pre-existing red gates on this branch (do not chase them):** 26 `web-core` files are
-   unformatted on `main` (unchanged by this branch), the repo carries 104 unused i18n keys on
-   `main`, and `local-web`'s build only fits in an 8 GB Node heap. `check.sh` handles all three:
-   prettier is scoped to goal-owned files, the i18n check is a ≤104 regression gate, and the
-   build runs with CI's heap flag. Do **not** reformat the 26 unrelated files or mass-prune
-   keys as part of this goal — record such cleanups in `IMPROVEMENTS.md` instead.
+1. Work continues on `drop-remote-support`; the change is additive to the local app.
+2. Dev stack: `pnpm run dev` → UI on `FRONTEND_PORT` (3003) and API at
+   `/tmp/vibe-kanban/vibe-kanban.port` (`main_port`, 3004).
+3. `agent-browser` needs `--args "--no-sandbox"` here and prints an unrelated
+   `~/.agent-browser/config.json` warning; the gate filters it. The gate uses its own session so
+   it cannot disturb operator tabs.
+4. Section 10 (browser e2e) is **scored**, not self-skipped: with the stack or the browser down
+   the gate is red by design. Start `pnpm run dev` before running it.
+5. `POST /api/workspaces/start` returns as soon as the workspace row exists, so the gate asserts
+   the **link**, never agent output or workspace readiness.
+6. `vibe-kanban-tauri` cannot build here (system glib missing) and is excluded everywhere.
+7. Pre-existing repo drift stays out of scope: 26 unformatted `web-core` files on `main`, 104
+   unused i18n keys, the 8 GB build heap, and the tracked `.pi-loop-log.jsonl`.
+8. The e2e seeds its own repo/project/task through the API and deletes them afterwards, so it is
+   re-runnable and does not depend on operator data.
 
 ## Commands
 
-- Gate: `bash check.sh` (`CHECK_FAST=1 bash check.sh` skips build/lint-heavy steps)
-- Types: `pnpm run local-web:check && pnpm run web-core:check && pnpm run ui:check`
+- Gate: `bash check.sh` (`CHECK_FAST=1 bash check.sh` skips the heavy build/lint steps — never the
+  e2e section). The dev stack must be running (`pnpm run dev`) or section 10 scores zero.
+- Types: `pnpm run generate-types && pnpm run local-web:check && pnpm run web-core:check && pnpm run ui:check`
+- DB caches: `pnpm run prepare-db && pnpm run prepare-db:check`
 - Tests: `pnpm --filter @vibe/web-core test`
-- i18n: `GITHUB_BASE_REF=main ./scripts/check-i18n.sh && node scripts/check-unused-i18n-keys.mjs`
-- Format: `pnpm run format` then `pnpm --filter @vibe/ui run format` (writes repo-wide), or
-  scope it to goal files: `pnpm --filter @vibe/web-core exec prettier --write <files>`
-- Dev: `pnpm run dev` (UI `http://localhost:3003`, API `http://localhost:3004`)
+- Dev: `pnpm run dev`
+- Browser:
+  `agent-browser --session vibe-goal-check open <url> --args "--no-sandbox"` ·
+  `… eval "<js>"` · `… get url` · `… click "[data-testid=…]"` · `… screenshot <path>`
