@@ -1,212 +1,153 @@
-# GOAL — Link tasks to workspaces (cloud parity)
+# GOAL — bring the task UX/UI back (local, cloud-free, verified by screenshots)
 
-## Refined objective
+Status: active · Branch: `drop-remote-support` · Checker: [`check.sh`](./check.sh) (`CHECK_FAST=1 ./check.sh` ≈ 2.5 min, full ≈ 5.5 min)
 
-Restore the task ↔ workspace linkage the obsolete cloud feature had, locally:
+## Objective
 
-1. **Create a workspace from a task** — the task card offers it, the create flow opens
-   prefilled with the task's title/description, and the resulting workspace records `task_id`.
-2. **The task card shows its linked workspace(s)** and opens them on click.
-3. **The link is durable and queryable** — `GET /api/workspaces?task_id=` returns it, and it
-   survives a reload (no client-only state).
-4. **Verification is e2e through the `agent-browser` CLI** (not just unit/type checks).
+Restore the **task experience** that the deleted cloud feature provided, using only local data, so a
+task is a first-class object again: clickable cards, a dedicated detail panel, a workspace you can jump
+to, and a task state that advances itself while work happens.
 
-This is a *restore parity* goal: the columns, the read endpoint and the TS types already exist;
-the write path and the UI were lost with the cloud feature.
+Upstream reference (`git show afc578024` — "drop all remote/cloud support") deleted, among others:
+`pages/kanban/KanbanIssuePanelContainer.tsx` (the detail panel), `ProjectRightSidebarContainer.tsx`
+(the panel host that jumped to the workspace), `kanban-issue-panel-state.ts` (panel selection state),
+`IssueWorkspacesSectionContainer.tsx` (the task's workspace section), `features/kanban/ui/
+KanbanContainer.tsx`, `useKanbanFilters.ts`, `BulkActionBarContainer.tsx`, `useIssueShortcuts.ts`,
+and the selection params in `project-routes/project-search.ts` (now `z.object({})`).
 
-## Evidence — why a task is a dead end today
-
-| Gap | Evidence |
-| --- | --- |
-| Nothing can ever set the link | `crates/db/src/models/workspace.rs:311-323` — `Workspace::create` inserts a hardcoded `Option::<Uuid>::None` for the `task_id` column |
-| The create API cannot carry a task | `shared/types.ts:409` — `CreateAndStartWorkspaceRequest = { name, repos, linked_issue, executor_config, prompt, attachment_ids }`; the only linkage field is `linked_issue: { remote_project_id, issue_id }`, which points at the deleted cloud |
-| The reverse link is unwritable | `crates/db/src/models/task.rs:43` — `UpdateTask = { title, description, status }`, no `parent_workspace_id`, although the column exists |
-| No UI affordance | `packages/web-core/src/pages/kanban/LocalKanbanBoard.tsx` — create / move / rename / delete only; no workspace reference anywhere |
-| The read path existed but ignored the filter | `workspacesApi.getAll(taskId)` calls `GET /api/workspaces?task_id=` (`api.ts`) and `Workspace.task_id` is in `shared/types.ts`, but `get_workspaces` took no query params and returned every workspace (fixed in M1) |
-| Stub routes | `/projects/:pid/issues/:iid/workspaces/create/:draftId` render `LocalProjectKanban` (the board) — a dead end |
+Parity target = the **local** subset of that UX. Verification target = a browser-driven (agent-browser)
+run that produces **screenshots** plus DOM/API assertions for every capability.
 
 ## Scope
 
-### In scope
-1. `crates/db/src/models/workspace.rs` — `Workspace::create` binds a real `task_id`.
-2. `crates/server/src/routes/workspaces/create.rs` (+ its request struct) — accept and persist
-   `task_id` on `POST /api/workspaces/start`.
-3. `shared/types.ts` regenerated (`pnpm run generate-types`) so the request carries `task_id`.
-4. `.sqlx` offline caches updated for changed queries (`pnpm run prepare-db`).
-5. `LocalKanbanBoard.tsx` — a **Create workspace** action per task that opens the local create
-   flow prefilled from the task and carries the task id.
-6. `LocalKanbanBoard.tsx` — the task card lists its linked workspace(s) and opens them.
-7. Create-flow plumbing so the start request includes `task_id` (`useCreateModeState` /
-   `workspaceCreateState` / `workspacesApi.createAndStart`).
-8. i18n keys in all 7 locales; docs; tests; e2e evidence.
+In scope (all local, no new runtime dependencies):
 
-### Non-goals (do NOT do)
-- No cloud code: no `crates/remote`, `packages/remote-web`, Electric, `shared/remote-types.ts`.
-- `linked_issue` stays as an unused nullable field — removing it is separate cleanup.
-- `Task.parent_workspace_id` stays unused: **`workspace.task_id` is the single source of truth**.
-- No per-task repo/executor draft parity on the stub `workspaces/create/$draftId` routes; they may
-  redirect to `/workspaces/create` at most. Full draft parity is backlog only.
-- No change to the rail, the workspaces list/sidebar, the workspace runtime, or the board's
-  existing task features (create/move/rename/description/delete).
-- No multi-workspace management UI (no linking an *existing* workspace to a task).
-- No new runtime dependencies.
+1. **Clickable task card → selection.** Clicking a card selects the task and reflects it in the URL
+   (`?task=<taskId>`), so the view is linkable and survives reload. Card controls (move/create/delete)
+   keep working and must not trigger selection.
+2. **Dedicated task detail UI** (right-hand panel, as upstream): title, description, status, workspace,
+   inline edit of title/description, delete. Closeable (button and `Escape`).
+3. **Workspace section, 1:1**: a task owns at most one workspace. The panel shows it and can open it
+   (`goToWorkspace`) or create it (prefilled from the task, as today). Starting a second one from the
+   same task opens the existing workspace instead of creating a duplicate — enforced in the database.
+4. **Automated task status**: execution starting → `in_progress`; execution finishing → `in_review`;
+   PR merged → `done`. Forward-only, never silently undoing an operator's `done`/`cancelled`.
+5. **Board ergonomics that the old UI had**: filter tasks (text + status), bulk actions (select several
+   tasks → move / delete), and keyboard handling (`Escape` closes the panel, `c` focuses the new-task
+   input, `/` focuses the filter).
 
-## Measurable completion criteria
+Non-goals (deleted with the cloud feature and impossible locally): comments, sub-issues, issue
+relationships, assignees, priorities, remote issue links, the sunset page, remote workspaces. Do not
+re-add cloud code, `shared/remote-types.ts`, `crates/remote`, `packages/remote-web`, or Electric deps.
 
-`bash check.sh` exits 0 **and** prints `SCORE: N/N`. Hard gates:
+## Completion criteria (measurable)
 
-1. Every scored structural check passes (see Mandated names).
-2. `pnpm run prepare-db:check` exits 0 (SQLx offline caches in sync with the code).
-3. `cargo check --workspace --exclude vibe-kanban-tauri` exits 0.
-4. `local-web:check`, `web-core:check`, `ui:check` exit 0.
-5. `local-web:lint`, `ui:lint` exit 0; goal-owned files prettier-clean.
-6. `check-i18n` exits 0, unused i18n keys stay ≤ 104, legacy-path guard exits 0, and `local-web`
-   builds with `NODE_OPTIONS=--max-old-space-size=8192`.
-7. `pnpm --filter @vibe/web-core test` exits 0.
-8. **`agent-browser` e2e passes**: create-from-task → workspace linked → card shows it → open.
-9. Screenshots from that run are committed under `.context/evidence/task-workspace-link/`.
+`./check.sh` is the arbiter: it prints `SCORE: <n>` / `MAX: <n>` and exits 0 **only** when
+`SCORE == MAX`. Baseline today is printed by the first run; every milestone raises it.
 
-The loop is endless: once `SCORE: N/N`, keep improving via `IMPROVEMENTS.md`. Declare
-`LOOP_DONE:` only when the check is green.
+Hard criteria (each is a gate section):
 
-## Mandated names (the gate greps for these — use them exactly)
+- **Selection**: the card is clickable, the URL carries `?task=`, a reload keeps the panel open, and
+  `Escape` closes it.
+- **Detail panel**: `data-testid="task-detail-panel"` visible after a card click, showing the task's
+  title, description and status; editing the title through the panel persists (`GET /api/tasks/<id>`).
+- **Workspace section**: the panel shows the linked workspace, `task-detail-open-workspace` navigates to
+  `/workspaces/<workspaceId>`, and `task-detail-create-workspace` runs the existing prefilled create flow.
+- **1:1**: triggering create-from-task twice leaves exactly one workspace for that task
+  (`GET /api/workspaces?task_id=` returns one id both times).
+- **Automated status**: after the e2e creates and starts a workspace from a task, `GET /api/tasks/<id>`
+  reports `in_progress` with nobody clicking a move button; the transition function is unit tested.
+- **Filters / bulk / keyboard**: filtering narrows the rendered cards; selecting two cards and moving
+  them updates both tasks (`GET /api/tasks`); `Escape` closes the panel.
+- **Evidence**: ≥4 screenshots (>12 KB PNG, one per claim above) committed under
+  `.context/evidence/task-ux/` together with a `NOTES.md` that maps each screenshot to the claim it proves.
+- **Quality**: type checks, lint, prettier, `cargo check`, SQLx caches, i18n regression, local-web build
+  and the vitest suite all pass; no new runtime dependency; no cloud code (guards in section 5).
 
-| Thing | Exact |
+## Mandated test hooks (the gate greps these — do not rename)
+
+| Hook | Where |
 | --- | --- |
-| Request field (Rust) | `task_id: Option<Uuid>` in the start/request struct |
-| Request field (TS) | `task_id` in `CreateAndStartWorkspaceRequest` |
-| Task card root | `data-testid="task-card-<taskId>"` |
-| Create-workspace action | `data-testid="task-create-workspace-<taskId>"` |
-| Linked-workspace control | `data-testid="task-open-workspace-<workspaceId>"` on each linked workspace |
-| Create-flow prompt field | the composer's `WYSIWYGEditor` (`aria-label="Markdown editor"`) — it does not forward `data-testid` |
-| Create-flow submit | the composer's `Create` button (matched by accessible name) |
-| i18n keys (`common`) | `kanban.task.createWorkspace`, `kanban.task.openWorkspace` |
-| Open handler | `appNavigation.goToWorkspace(workspaceId)` |
-| Evidence dir | `.context/evidence/task-workspace-link/` |
-| Gate browser session | `agent-browser --session vibe-goal-check` |
+| `task-card-<taskId>` | card root (already exists) — clicking it selects the task |
+| `task-detail-panel` | panel root |
+| `task-detail-title`, `task-detail-description`, `task-detail-status` | panel fields |
+| `task-detail-edit-title`, `task-detail-title-input`, `task-detail-save`, `task-detail-delete` | panel controls |
+| `task-detail-open-workspace`, `task-detail-create-workspace` | panel workspace actions |
+| `kanban-filter-input`, `kanban-filter-clear` | board filter |
+| `task-select-<taskId>`, `kanban-bulk-move`, `kanban-bulk-delete` | bulk actions |
+| `task-create-workspace-<taskId>`, `task-open-workspace-<workspaceId>` | card actions (already exist) |
 
-## Milestone roadmap
+URL contract: `/projects/<projectId>?task=<taskId>` opens the panel. The create flow's prompt editor is
+a Lexical `contenteditable` (`aria-label="Markdown editor"`) that does not forward `data-testid`; the
+gate locates it by that label and submits with the composer's `Create` button.
 
-One commit per milestone, Conventional Commits, repo left type-checking.
+## Milestones (small steps; commit each one)
 
-- **M0 — Baseline.** `pnpm install` done; `bash check.sh`; record `SCORE` + failing checks in
-  `PROGRESS.md`; reset `PROGRESS.md` / `IMPROVEMENTS.md` / `ASSUMPTIONS.md` for this goal.
-- **M1 — Backend write path.** Add `task_id: Option<Uuid>` to the create request; thread it
-  through `create_workspace` into `CreateWorkspace`; make `Workspace::create` bind it instead of
-  the literal `None`. Run `pnpm run prepare-db` (caches) and `pnpm run prepare-db:check`.
-  Prove with curl: starting a workspace with `task_id` makes
-  `GET /api/workspaces?task_id=<task>` return it; a start without `task_id` still yields `null`.
-- **M2 — Types.** `pnpm run generate-types`; confirm `CreateAndStartWorkspaceRequest` carries
-  `task_id`; `local-web:check` + `web-core:check` green.
-- **M3 — Create from task.** In `LocalKanbanBoard.tsx` add the per-task **Create workspace**
-  action (mandated test ids) that navigates to the local create flow with the task's title and
-  description as the prompt, carrying the task id; the create flow submits it as `task_id`.
-  The flow must be submittable **without further input** — a repo is preselected by default, so
-  the e2e never picks one (it only clicks submit).
-- **M4 — Show and open the link.** The task card lists its linked workspaces (resolve them from
-  `workspacesApi.getAll(task.id)` / the workspace data the board already has) with the mandated
-  test id and `goToWorkspace` on click; a task with no workspace shows nothing extra.
-- **M5 — agent-browser e2e.** Run the flow with the CLI (session `vibe-goal-check`), save
-  screenshots + `NOTES.md` under the evidence dir, and commit them. `check.sh` section 10 does
-  the same flow automatically — make it pass.
-- **M6 — Pure logic + tests.** Extract testable helpers next to the board (e.g.
-  `taskWorkspaceLinkModel.ts`: build the create prompt from a task; pick the linked workspaces
-  for a task id) and cover them with vitest.
-- **M7 — Docs.** `docs/local-projects-kanban.md` (plus a short `docs/task-workspace-link.md` if
-  it earns its place): the create-from-task flow, the link column, what is deliberately absent.
-- **M8 — Quality pass.** Format goal files, full `bash check.sh` green, clean tree, evidence
-  committed.
+- [ ] **M1 — selection plumbing.** Extend `projectSearchSchema` with `task`, expose it from
+  `useCurrentKanbanRouteState`, make the card a clickable region that sets/clears the param, add
+  `Escape` to close. Verify: gate section 2 + `?task=` in the browser.
+- [ ] **M2 — detail panel.** New `packages/web-core/src/pages/kanban/TaskDetailPanel.tsx` rendered by the
+  board when a task is selected: title/description (inline edit), status, delete, close button; all
+  strings in `kanban.task.*` for the 7 locales. Verify: gate section 3 + screenshot.
+- [ ] **M3 — workspace section + 1:1.** Panel section showing the linked workspace with open/create;
+  migration adding a partial unique index on `workspace.task_id`; create-from-task reuses the existing
+  workspace. Verify: gate section 4 + the e2e create-twice check + screenshot.
+- [ ] **M4 — automated status.** Restore `Task::update_status` around a pure, unit-tested transition
+  function, then hook it: execution start → `in_progress`, execution finish → `in_review`, PR merge →
+  `done` (forward-only, never regressing `done`/`cancelled`). Verify: gate section 5 + e2e status poll.
+- [ ] **M5 — filters.** Text + status filtering in a pure model (`taskFilters.ts`) with tests, wired to
+  `kanban-filter-input` / `kanban-filter-clear`. Verify: gate section 6 + e2e narrowing.
+- [ ] **M6 — bulk actions.** Per-card selection checkbox (`task-select-<id>`), a bulk bar with move and
+  delete, pure selection model with tests. Verify: gate section 6 + e2e multi-move.
+- [ ] **M7 — keyboard.** `Escape` (close panel), `c` (focus new-task input), `/` (focus filter) via a
+  small hook; documented in `docs/local-projects-kanban.md`. Verify: gate section 6 + e2e keypress.
+- [ ] **M8 — quality pass.** `pnpm run format`, docs updated (task panel, 1:1, status automation,
+  shortcuts), evidence `NOTES.md` + screenshots committed, full `./check.sh` green, tree clean apart
+  from the loop's own log file.
 
 ## Quality standards
 
-- **Tests:** pure logic in `taskWorkspaceLinkModel.ts` covered by vitest; the interactive claim is
-  proven by the `agent-browser` e2e, not asserted in code.
-- **Docs:** the flow, the single-source-of-truth decision (`workspace.task_id`), and the
-  deliberately unchanged pieces.
-- **Git:** one commit per milestone; `feat(tasks): …`, `feat(server): …`, `test(tasks): …`,
-  `docs(tasks): …`.
-- **i18n:** every user-visible string through `t()` with keys in all 7 locales
-  (`en, es, fr, ja, ko, zh-Hans, zh-Hant`); never leave an orphaned key.
-- **Style:** no `any`, no non-null assertions to silence the compiler, no dead code, no new deps.
-- **SQLx:** every changed query must be re-prepared so `prepare-db:check` stays green.
+- Conventional Commits, **one milestone per commit**; the repo must type-check and format at every commit.
+- Tests for all pure logic (vitest, `packages/web-core`) — filtering, selection, transitions, link lookup.
+- i18n: every user-facing string exists in all 7 locales (`en, es, fr, ja, ko, zh-Hans, zh-Hant`) with no
+  orphans (the ≤104 unused-key baseline is a regression guard, not a target).
+- Docs: `docs/local-projects-kanban.md` describes the task panel, the 1:1 rule and the automatic statuses.
+- Evidence: screenshots are the verification artifact — capture them from a real browser run and commit
+  them; never fabricate a claim the gate cannot reproduce.
+- Keep diffs surgical: do not reformat pre-existing drift; record unrelated cleanups in `IMPROVEMENTS.md`.
 
-## Assumptions
+## Assumptions (decided without asking; recorded in `ASSUMPTIONS.md`)
 
-1. Work continues on `drop-remote-support`; the change is additive to the local app.
-2. Dev stack: `pnpm run dev` → UI on `FRONTEND_PORT` (3003) and API at
-   `/tmp/vibe-kanban/vibe-kanban.port` (`main_port`, 3004).
-3. `agent-browser` needs `--args "--no-sandbox"` here and prints an unrelated
-   `~/.agent-browser/config.json` warning; the gate filters it. The gate uses its own session so
-   it cannot disturb operator tabs.
-4. Section 10 (browser e2e) is **scored**, not self-skipped: with the stack or the browser down
-   the gate is red by design. Start `pnpm run dev` before running it.
-5. `POST /api/workspaces/start` returns as soon as the workspace row exists, so the gate asserts
-   the **link**, never agent output or workspace readiness.
-6. `vibe-kanban-tauri` cannot build here (system glib missing) and is excluded everywhere.
-7. Pre-existing repo drift stays out of scope: 26 unformatted `web-core` files on `main`, 104
-   unused i18n keys, the 8 GB build heap, and the tracked `.pi-loop-log.jsonl`.
-8. The e2e seeds its own repo/project/task through the API and deletes them afterwards, so it is
-   re-runnable and does not depend on operator data.
+1. **Parity means the local subset.** Cloud-only affordances (comments, sub-issues, relations, assignees,
+   priority, remote links) are non-goals — they cannot work without the deleted backend.
+2. **The panel is a right-hand sidebar on the board**, selected through URL search params — exactly how
+   upstream did it (`projectSearchValidator` + `ProjectRightSidebarContainer`). The leftover
+   `/projects/$projectId/issues/$issueId` routes stay untouched (their removal is separate cleanup).
+3. **`workspace.task_id` stays the source of truth**, now backed by a partial unique index for 1:1;
+   `Task.parent_workspace_id` remains unused.
+4. **Status automation is forward-only**: `todo → in_progress → in_review → done`, `cancelled` terminal,
+   and `in_review` is reachable from `todo` when an execution finishes without a recorded start.
+5. **A screenshot is valid evidence** if it is a PNG > 12 KB produced by `agent-browser screenshot` during
+   the run (blank/failed captures are smaller).
+6. **`agent-browser` is the only e2e driver** (`--args "--no-sandbox"`); relative screenshot paths resolve
+   against the daemon's cwd, so the gate always passes absolute paths.
+7. **Rust checks exclude `vibe-kanban-tauri`** (system glib/GTK absent here).
+8. **Pre-existing drift is out of scope**: 26 unformatted `web-core` files and 104 unused i18n keys exist
+   on `main`; the gate only forbids regressions.
 
-## Commands
+## Baseline (measured before M1)
 
-- Gate: `bash check.sh` (`CHECK_FAST=1 bash check.sh` skips the heavy build/lint steps — never the
-  e2e section). The dev stack must be running (`pnpm run dev`) or section 10 scores zero.
-- Types: `pnpm run generate-types && pnpm run local-web:check && pnpm run web-core:check && pnpm run ui:check`
-- DB caches: `pnpm run prepare-db && pnpm run prepare-db:check`
-- Tests: `pnpm --filter @vibe/web-core test`
-- Dev: `pnpm run dev`
-- Browser:
-  `agent-browser --session vibe-goal-check open <url> --args "--no-sandbox"` ·
-  `… eval "<js>"` · `… get url` · `… click "[data-testid=…]"` · `… screenshot <path>`
+Measured on the commit that introduced this spec: **fast `SCORE 58 / MAX 226` in 106 s** (full mode adds
+the lint/i18n/build sections, so its `MAX` is higher — always compare `SCORE` against that run's `MAX`).
+Sections 1, 7, 11, 12 and the board/card/create basics already score; every M1+ check fails with a
+diagnostic naming what is missing.
 
----
+## Operating notes (for an unattended run)
 
-# Revision 2 — the task is the primary object (operator feedback, 2026-02-24)
-
-## What history shows (evidence, not memory)
-
-- **The deep link already exists as a dead path.** `origin/main` and this branch still ship
-  `/projects/$projectId/issues/$issueId` and `.../issues/$issueId_/workspaces/$workspaceId`, but all of
-  them render `LocalProjectKanban`, and the selector that used to drive them
-  (`packages/web-core/src/project-routes/project-search.ts`) is now `z.object({})` — the selection
-  params were stripped with remote support. `useCurrentKanbanRouteState` returns only `projectId`, so
-  the params are ignored and every one of those URLs shows the plain board.
-- **The dedicated task UI was a right-hand panel on the board, not a separate page.**
-  `origin/main:packages/web-core/src/pages/kanban/ProjectRightSidebarContainer.tsx` resolved a
-  selection into `{ kind: 'issue', issueId, resolution }` or `{ kind: 'issue-workspace', workspaceId }`
-  and jumped with `appNavigation.goToWorkspace(workspaceId)` — exactly the "task detail → workspace"
-  hop the operator describes. That file was deleted with remote support.
-- **Task state used to be automatic.** `Task::update_status` no longer exists on this branch (only
-  `PullRequest::update_status` survives). Upstream drove it from the execution lifecycle:
-  `services/container.rs:938` start → `InProgress`; `container.rs:164/1035` completion → `InReview`;
-  `services/pr_monitor.rs:131` PR merge → `Done`; `services/approvals.rs` review round-trips →
-  `InReview`/`InProgress`. All of those local lifecycle points (`start_workspace`, `start_execution`,
-  `stop_execution`) are still present, so the automation is re-attachable, not inventable.
-- **The relationship is 1:1.** The operator's model: a task owns at most one workspace. Nothing
-  enforces it today: `GET /api/workspaces?task_id=` returns a list, the create flow can be entered
-  repeatedly, and `workspace.task_id` has no uniqueness constraint.
-
-## Requirements (new hard gates)
-
-1. **A task card is clickable** and selects the task (the card's own controls keep working and must not
-   trigger selection). Selection is reflected in the URL so it is linkable and reloadable.
-2. **A task has a dedicated detail UI** showing title, description, status and its workspace, with a
-   **jump to the workspace**. Hooks: `data-testid="task-detail-panel"`,
-   `data-testid="task-detail-open-workspace"`.
-3. **1:1, enforced**: at most one workspace per task. Enforced in the database (partial unique index on
-   `workspace.task_id`), so a second create-from-task returns/opens the existing workspace instead of
-   making a duplicate. Gate: creating twice from the same task yields one workspace.
-4. **Task state is automatic**: starting a workspace's execution moves the task to `InProgress`;
-   the execution finishing moves it to `InReview`; a merged PR moves it to `Done`. Transitions are
-   forward-only (never silently walk a task back), pure and unit tested, and never override an
-   operator's explicit `Cancelled`/`Done`. Gate: after the e2e creates a workspace from a task, the
-   task's status is `in_progress` without anyone clicking a move button.
-
-## Milestones
-
-- [ ] M9 — selection plumbing (`projectSearchSchema` params, `useCurrentKanbanRouteState`, clickable card)
-- [ ] M10 — task detail panel + workspace jump (test ids above, i18n in all 7 locales)
-- [ ] M11 — 1:1 enforcement (migration + create-from-task reuses the linked workspace)
-- [ ] M12 — automated task status (guarded `Task::update_status` + lifecycle hooks + unit tests)
-- [ ] M13 — gate + e2e for all of the above
+- Start the dev stack detached, or it dies with the harness process group:
+  `setsid nohup pnpm run dev > /tmp/vibe-dev.log 2>&1 < /dev/null & disown`; UI on
+  `http://localhost:3003`, API on `http://localhost:3004` (port file `/tmp/vibe-kanban/vibe-kanban.port`).
+- `cargo watch` rebuilds after Rust edits — poll `/api/health` for 200 before API/e2e work. The heavy
+  gate sections rebuild `target/`, so restart the stack after a full run.
+- Run the e2e **before** the Rust gates (they starve `cargo watch` and can kill the API the browser needs).
+- Fixtures (repo, project, task, workspace) are created and deleted by the gate itself.
