@@ -14,6 +14,7 @@ use serde::Deserialize;
 use services::services::container::ContainerService;
 use sqlx::Error as SqlxError;
 use utils::response::ApiResponse;
+use uuid::Uuid;
 use workspace_manager::WorkspaceManager;
 
 use crate::{DeploymentImpl, error::ApiError};
@@ -24,11 +25,21 @@ pub struct DeleteWorkspaceQuery {
     pub delete_branches: bool,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ListWorkspacesQuery {
+    /// Restrict the list to the workspaces started from this task.
+    pub task_id: Option<Uuid>,
+}
+
 pub async fn get_workspaces(
     State(deployment): State<DeploymentImpl>,
+    Query(query): Query<ListWorkspacesQuery>,
 ) -> Result<ResponseJson<ApiResponse<Vec<Workspace>>>, ApiError> {
     let pool = &deployment.db().pool;
-    let workspaces = Workspace::fetch_all(pool).await?;
+    let workspaces = match query.task_id {
+        Some(task_id) => Workspace::fetch_all_by_task_id(pool, task_id).await?,
+        None => Workspace::fetch_all(pool).await?,
+    };
     Ok(ResponseJson(ApiResponse::success(workspaces)))
 }
 

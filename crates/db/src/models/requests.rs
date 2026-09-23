@@ -31,6 +31,7 @@ pub struct LinkedIssueInfo {
 #[derive(Debug, Serialize, Deserialize, TS)]
 pub struct CreateAndStartWorkspaceRequest {
     pub name: Option<String>,
+    pub task_id: Option<Uuid>,
     pub repos: Vec<WorkspaceRepoInput>,
     pub linked_issue: Option<LinkedIssueInfo>,
     pub executor_config: ExecutorConfig,

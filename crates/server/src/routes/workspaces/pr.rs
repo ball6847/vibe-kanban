@@ -27,9 +27,7 @@ use git_host::{
     github::GhCli,
 };
 use serde::{Deserialize, Serialize};
-use services::services::{
-    config::DEFAULT_PR_DESCRIPTION_PROMPT, container::ContainerService,
-};
+use services::services::{config::DEFAULT_PR_DESCRIPTION_PROMPT, container::ContainerService};
 use ts_rs::TS;
 use utils::response::ApiResponse;
 use uuid::Uuid;
@@ -682,6 +680,7 @@ pub async fn create_workspace_from_pr(
         &CreateWorkspace {
             branch: target_branch_ref.clone(),
             name: Some(payload.pr_title.clone()),
+            task_id: None,
         },
         workspace_id,
     )

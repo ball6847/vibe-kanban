@@ -178,6 +178,9 @@ impl McpServer {
 
         let create_and_start_payload = CreateAndStartWorkspaceRequest {
             name: Some(name.clone()),
+            // This tool starts from a cloud issue id, which no longer exists locally; the local
+            // task link is set by the projects kanban flow instead.
+            task_id: None,
             repos: workspace_repos,
             linked_issue,
             executor_config: ExecutorConfig {

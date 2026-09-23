@@ -1,4 +1,3 @@
-
 use axum::{Json, extract::State, response::Json as ResponseJson};
 use db::models::{
     requests::{
@@ -16,6 +15,7 @@ use crate::{DeploymentImpl, error::ApiError};
 pub(crate) async fn create_workspace_record(
     deployment: &DeploymentImpl,
     name: Option<String>,
+    task_id: Option<Uuid>,
 ) -> Result<Workspace, ApiError> {
     let workspace_id = Uuid::new_v4();
     let branch_label = name
@@ -32,6 +32,7 @@ pub(crate) async fn create_workspace_record(
         &CreateWorkspace {
             branch: git_branch_name,
             name: name.filter(|workspace_name| !workspace_name.is_empty()),
+            task_id,
         },
         workspace_id,
     )
@@ -44,7 +45,7 @@ pub async fn create_workspace(
     State(deployment): State<DeploymentImpl>,
     Json(payload): Json<CreateWorkspaceApiRequest>,
 ) -> Result<ResponseJson<ApiResponse<Workspace>>, ApiError> {
-    let workspace = create_workspace_record(&deployment, payload.name).await?;
+    let workspace = create_workspace_record(&deployment, payload.name, None).await?;
 
     deployment
         .track_if_analytics_allowed(
@@ -73,6 +74,7 @@ pub async fn create_and_start_workspace(
 ) -> Result<ResponseJson<ApiResponse<CreateAndStartWorkspaceResponse>>, ApiError> {
     let CreateAndStartWorkspaceRequest {
         name,
+        task_id,
         repos,
         linked_issue: _linked_issue,
         executor_config,
@@ -94,7 +96,7 @@ pub async fn create_and_start_workspace(
 
     let mut managed_workspace = deployment
         .workspace_manager()
-        .load_managed_workspace(create_workspace_record(&deployment, name).await?)
+        .load_managed_workspace(create_workspace_record(&deployment, name, task_id).await?)
         .await?;
 
     for repo in &repos {
@@ -134,4 +136,3 @@ pub async fn create_and_start_workspace(
         },
     )))
 }
-

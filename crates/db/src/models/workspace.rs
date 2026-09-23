@@ -85,10 +85,39 @@ pub struct WorkspaceContext {
 pub struct CreateWorkspace {
     pub branch: String,
     pub name: Option<String>,
+    /// Task this workspace was started from, when it was created from a task card.
+    pub task_id: Option<Uuid>,
 }
 
 impl Workspace {
     /// Fetch all workspaces. Newest first.
+    /// Fetch all workspaces started from a task. Newest first.
+    pub async fn fetch_all_by_task_id(
+        pool: &SqlitePool,
+        task_id: Uuid,
+    ) -> Result<Vec<Self>, WorkspaceError> {
+        Ok(sqlx::query_as!(
+            Workspace,
+            r#"SELECT id AS "id!: Uuid",
+                          task_id AS "task_id: Uuid",
+                          container_ref,
+                          branch,
+                          setup_completed_at AS "setup_completed_at: DateTime<Utc>",
+                          created_at AS "created_at!: DateTime<Utc>",
+                          updated_at AS "updated_at!: DateTime<Utc>",
+                          archived AS "archived!: bool",
+                          pinned AS "pinned!: bool",
+                          name,
+                          worktree_deleted AS "worktree_deleted!: bool"
+                   FROM workspaces
+                   WHERE task_id = $1
+                   ORDER BY created_at DESC"#,
+            task_id
+        )
+        .fetch_all(pool)
+        .await?)
+    }
+
     pub async fn fetch_all(pool: &SqlitePool) -> Result<Vec<Self>, WorkspaceError> {
         let workspaces = sqlx::query_as!(
             Workspace,
@@ -319,7 +348,7 @@ impl Workspace {
                VALUES ($1, $2, $3, $4, $5, $6)
                RETURNING id as "id!: Uuid", task_id as "task_id: Uuid", container_ref, branch, setup_completed_at as "setup_completed_at: DateTime<Utc>", created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>", archived as "archived!: bool", pinned as "pinned!: bool", name, worktree_deleted as "worktree_deleted!: bool""#,
             id,
-            Option::<Uuid>::None,
+            data.task_id,
             Option::<String>::None,
             data.branch,
             Option::<DateTime<Utc>>::None,
