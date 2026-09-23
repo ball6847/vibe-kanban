@@ -374,6 +374,22 @@ print((json.load(sys.stdin).get('data') or {}).get('task_id') or '')" 2>/dev/nul
       else NO "filtering narrows the board (cards: $REMAIN)" 5; fi
       ab click "[data-testid=kanban-filter-clear]" >/dev/null 2>&1
     else NO "filtering narrows the board" 5; fi
+    # --- keyboard: `/` focuses the filter, `c` focuses the new-task input
+    ab_open "http://localhost:$UI/projects/$PID" >/dev/null
+    ab wait "[data-testid=task-card-$TID]" >/dev/null 2>&1
+    ab press / >/dev/null 2>&1
+    sleep 1
+    FOCUSED=$(ab_eval "document.activeElement?.getAttribute('data-testid') || document.activeElement?.tagName || ''")
+    [ "$FOCUSED" = "kanban-filter-input" ] && OK "the '/' shortcut focuses the filter" 3 \
+      || NO "the '/' shortcut focuses the filter (focused: '${FOCUSED:-none}')" 3
+    ab press Escape >/dev/null 2>&1
+    ab press c >/dev/null 2>&1
+    sleep 1
+    FOCUSED=$(ab_eval "document.activeElement?.getAttribute('aria-label') || ''")
+    [ "$FOCUSED" = "New task title" ] && OK "the 'c' shortcut focuses the new-task input" 3 \
+      || NO "the 'c' shortcut focuses the new-task input (focused: '${FOCUSED:-none}')" 3
+    ab_eval "document.activeElement?.blur()" >/dev/null 2>&1
+
     # --- bulk: the bar only exists once something is selected, so select first
     if [ "$(ab_count "[data-testid=task-select-$TID]")" = "1" ]; then
       ab click "[data-testid=task-select-$TID]" >/dev/null 2>&1

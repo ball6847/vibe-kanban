@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/shared/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
@@ -25,6 +25,7 @@ import {
 import { groupWorkspacesByTaskId } from './taskWorkspaceLinkModel';
 import { TaskDetailPanel } from './TaskDetailPanel';
 import { canTransitionTaskStatus } from './taskStatus';
+import { useKanbanShortcuts } from './useKanbanShortcuts';
 import {
   pruneSelection,
   selectedTasks,
@@ -74,20 +75,21 @@ export function LocalKanbanBoard({
 
   usePageTitle(projectName, 'Projects');
 
-  useEffect(() => {
-    if (!selectedTaskId) {
-      return;
-    }
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        appNavigation.goToProject(projectId);
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [appNavigation, projectId, selectedTaskId]);
+  const newTaskInputRef = useRef<HTMLInputElement>(null);
+  const filterInputRef = useRef<HTMLInputElement>(null);
+  const shortcuts = useMemo(
+    () => ({
+      onClosePanel: () => {
+        if (selectedTaskId) {
+          appNavigation.goToProject(projectId);
+        }
+      },
+      onFocusNewTask: () => newTaskInputRef.current?.focus(),
+      onFocusFilter: () => filterInputRef.current?.focus(),
+    }),
+    [appNavigation, projectId, selectedTaskId]
+  );
+  useKanbanShortcuts(shortcuts);
 
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
 
@@ -310,6 +312,7 @@ export function LocalKanbanBoard({
       </div>
       <div className="flex shrink-0 gap-half p-base pb-0">
         <input
+          ref={newTaskInputRef}
           aria-label="New task title"
           value={newTaskTitle}
           onChange={(e) => setNewTaskTitle(e.target.value)}
@@ -330,6 +333,7 @@ export function LocalKanbanBoard({
       </div>
       <div className="flex shrink-0 items-center gap-half px-base pt-half">
         <input
+          ref={filterInputRef}
           data-testid="kanban-filter-input"
           aria-label={t('kanban.filter.placeholder')}
           value={filters.text}

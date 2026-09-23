@@ -56,3 +56,29 @@ The projects section of the AppBar rail lists the same local projects and works
   `/projects`, reverse ← route id `/_app/projects`). The kind is deliberately
   not part of `ProjectDestinationKind`, which drives kanban issue/workspace
   resolution from a project id.
+
+## Task detail panel and the task ↔ workspace link
+
+Clicking a card selects the task and opens the detail panel beside the board. The selection
+lives in the URL (`/projects/<projectId>/issues/<taskId>`, via `goToProjectIssue`), so the
+view is linkable and survives a reload; `Escape`, the close button, or clicking the board
+returns to `/projects/<projectId>`. Card controls (move, create workspace, delete, select)
+stop propagation and never trigger selection.
+
+- Panel: `packages/web-core/src/pages/kanban/TaskDetailPanel.tsx` — title and description
+  edited inline (saved through `PATCH /api/tasks/{id}`), status, delete, and the task's
+  workspace. All panel strings live under `kanban.task.*` in the seven locales.
+- **1:1**: a task owns at most one workspace. The panel offers *Open workspace* when one
+  exists (otherwise *Create workspace*, which runs the prefilled create flow), creating from
+  the card opens the existing workspace, and `idx_workspaces_task_id_unique` — a partial
+  unique index on `workspaces(task_id)` — makes the rule a database guarantee.
+- **Automatic status**: `TaskStatus::can_transition_to` (`crates/db/src/models/task.rs`) is
+  the pure, forward-only rule (`done`/`cancelled` terminal, review may send work back).
+  `Task::update_status` applies it where the lifecycle knows: an agent run starting →
+  `inprogress` (`container.rs`), a completed run → `inreview`, and all of a workspace's PRs
+  merged → `done` (`pr_monitor.rs`). The board mirrors the same rules in `taskStatus.ts`, so
+  a manual move cannot put a card where the services would refuse to follow.
+- **Board ergonomics**: `taskFilters.ts` (text + status filtering), `taskSelection.ts`
+  (bulk selection with move/delete) and `useKanbanShortcuts.ts` (`Escape` closes the panel,
+  `c` focuses the new-task input, `/` focuses the filter). Each is pure and unit tested, and
+  each has an `agent-browser` end-to-end check in `check.sh`.
