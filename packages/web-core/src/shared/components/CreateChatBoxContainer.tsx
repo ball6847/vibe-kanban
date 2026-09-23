@@ -50,6 +50,7 @@ export function CreateChatBoxContainer({
     hasInitialValue,
     hasResolvedInitialRepoDefaults,
     linkedIssue,
+    taskId,
     clearLinkedIssue,
     preferredExecutorConfig,
     executorConfig: draftConfig,
@@ -229,8 +230,7 @@ export function CreateChatBoxContainer({
     const data = {
       executor_config: executorConfig,
       name: title,
-      // Set when the composer was opened from a task card; see the board's create action.
-      task_id: null,
+      task_id: taskId,
       prompt: message,
       repos: repos.map((r) => ({
         repo_id: r.id,
@@ -331,6 +331,7 @@ export function CreateChatBoxContainer({
                     localAttachments,
                   }) => (
                     <WYSIWYGEditor
+                      data-testid="workspace-create-prompt"
                       placeholder="Describe the task..."
                       value={value}
                       onChange={onChange}

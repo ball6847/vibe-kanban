@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Task } from 'shared/types';
 import { localProjectsApi, localTasksApi } from '@/shared/lib/api';
+import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { usePageTitle } from '@/shared/hooks/usePageTitle';
+import {
+  DEFAULT_WORKSPACE_CREATE_DRAFT_ID,
+  buildWorkspaceCreateInitialState,
+  buildWorkspaceCreatePrompt,
+  persistWorkspaceCreateDraft,
+} from '@/shared/lib/workspaceCreateState';
 import {
   COLUMNS,
   STATUS_LABEL,
@@ -14,6 +22,8 @@ interface LocalKanbanBoardProps {
 }
 
 export function LocalKanbanBoard({ projectId }: LocalKanbanBoardProps) {
+  const { t } = useTranslation('common');
+  const appNavigation = useAppNavigation();
   const [projectName, setProjectName] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -125,6 +135,20 @@ export function LocalKanbanBoard({ projectId }: LocalKanbanBoardProps) {
     } finally {
       setBusyTaskId(null);
     }
+  };
+
+  /**
+   * Opens the local create flow for this task. The draft carries the task's
+   * title/description as the prompt plus the task id, which the start request
+   * forwards so the new workspace is linked back to the task.
+   */
+  const handleCreateWorkspace = async (task: Task) => {
+    const prompt = buildWorkspaceCreatePrompt(task.title, task.description);
+    await persistWorkspaceCreateDraft(
+      buildWorkspaceCreateInitialState({ prompt, taskId: task.id }),
+      DEFAULT_WORKSPACE_CREATE_DRAFT_ID
+    );
+    appNavigation.goToWorkspacesCreate();
   };
 
   const handleDelete = async (taskId: string) => {
@@ -254,6 +278,7 @@ export function LocalKanbanBoard({ projectId }: LocalKanbanBoardProps) {
                     return (
                       <article
                         key={task.id}
+                        data-testid={`task-card-${task.id}`}
                         className="rounded-sm border border-border bg-primary p-half"
                       >
                         {editingTaskId === task.id ? (
@@ -319,6 +344,17 @@ export function LocalKanbanBoard({ projectId }: LocalKanbanBoardProps) {
                             className="rounded-sm px-half text-xs text-low disabled:opacity-30"
                           >
                             ›
+                          </button>
+                          <button
+                            type="button"
+                            data-testid={`task-create-workspace-${task.id}`}
+                            aria-label={t('kanban.task.createWorkspace')}
+                            title={t('kanban.task.createWorkspace')}
+                            disabled={busyTaskId === task.id}
+                            onClick={() => void handleCreateWorkspace(task)}
+                            className="rounded-sm px-half text-xs text-low disabled:opacity-30"
+                          >
+                            +
                           </button>
                           <button
                             type="button"

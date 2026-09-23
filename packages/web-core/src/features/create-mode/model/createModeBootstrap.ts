@@ -18,6 +18,7 @@ export interface BootstrapSelectedRepo {
 export interface CreateModeBootstrapData {
   message?: string;
   linkedIssue?: LinkedIssue | null;
+  taskId?: string | null;
   repos?: BootstrapSelectedRepo[];
   executorConfig?: ExecutorConfig | null;
   attachments?: DraftWorkspaceAttachment[];
@@ -88,12 +89,14 @@ export async function resolveCreateModeBootstrap({
 }: ResolveCreateModeBootstrapParams): Promise<ResolveCreateModeBootstrapResult> {
   const hasInitialPrompt = !!seedState?.initialPrompt;
   const hasLinkedIssue = !!seedState?.linkedIssue;
+  const hasTaskId = !!seedState?.taskId;
   const hasPreferredRepos = (seedState?.preferredRepos?.length ?? 0) > 0;
   const hasExecutorConfig = !!seedState?.executorConfig;
 
   if (
     hasInitialPrompt ||
     hasLinkedIssue ||
+    hasTaskId ||
     hasPreferredRepos ||
     hasExecutorConfig
   ) {
@@ -107,6 +110,11 @@ export async function resolveCreateModeBootstrap({
 
     if (hasLinkedIssue) {
       data.linkedIssue = seedState!.linkedIssue!;
+      appliedSeedState = true;
+    }
+
+    if (hasTaskId) {
+      data.taskId = seedState!.taskId!;
       appliedSeedState = true;
     }
 
@@ -145,6 +153,10 @@ export async function resolveCreateModeBootstrap({
       isValidProfile(scratchData.executor_config)
     ) {
       data.executorConfig = scratchData.executor_config;
+    }
+
+    if (scratchData.task_id) {
+      data.taskId = scratchData.task_id;
     }
 
     if (scratchData.linked_issue) {

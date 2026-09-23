@@ -53,6 +53,7 @@ export function buildWorkspaceCreateInitialState(args: {
   prompt: string | null;
   defaults?: WorkspaceDefaultsLike | null;
   linkedIssue?: CreateModeInitialState['linkedIssue'];
+  taskId?: string | null;
   executorConfig?: CreateModeInitialState['executorConfig'];
 }): CreateModeInitialState {
   return {
@@ -60,6 +61,7 @@ export function buildWorkspaceCreateInitialState(args: {
     preferredRepos: args.defaults?.preferredRepos ?? null,
     project_id: args.defaults?.project_id ?? null,
     linkedIssue: args.linkedIssue ?? null,
+    taskId: args.taskId ?? null,
     executorConfig: args.executorConfig ?? null,
   };
 }
@@ -93,6 +95,7 @@ export function toDraftWorkspaceData(
           remote_project_id: initialState.linkedIssue.remoteProjectId,
         }
       : null,
+    task_id: initialState.taskId ?? null,
     attachments: [],
   };
 }

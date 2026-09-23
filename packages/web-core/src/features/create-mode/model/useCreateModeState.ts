@@ -49,6 +49,7 @@ interface DraftState {
   repos: SelectedRepo[];
   message: string;
   linkedIssue: LinkedIssue | null;
+  taskId: string | null;
   executorConfig: ExecutorConfig | null;
   attachments: DraftWorkspaceAttachment[];
 }
@@ -85,6 +86,7 @@ const draftInitialState: DraftState = {
   repos: [],
   message: '',
   linkedIssue: null,
+  taskId: null,
   executorConfig: null,
   attachments: [],
 };
@@ -233,6 +235,7 @@ interface UseCreateModeStateResult {
   isLoading: boolean;
   hasInitialValue: boolean;
   linkedIssue: LinkedIssue | null;
+  taskId: string | null;
   executorConfig: ExecutorConfig | null;
   setMessage: (message: string) => void;
   addRepo: (repo: Repo) => void;
@@ -527,6 +530,7 @@ export function useCreateModeState({
         target_branch: r.targetBranch ?? '',
       })),
       executor_config: state.executorConfig ?? null,
+      task_id: state.taskId,
       linked_issue: state.linkedIssue
         ? {
             issue_id: state.linkedIssue.issueId,
@@ -622,6 +626,7 @@ export function useCreateModeState({
     isLoading: scratchLoading,
     hasInitialValue: state.phase === 'ready',
     linkedIssue: state.linkedIssue,
+    taskId: state.taskId,
     executorConfig: state.executorConfig,
     setMessage,
     addRepo,

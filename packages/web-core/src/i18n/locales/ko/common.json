@@ -478,6 +478,10 @@
         "title": "Invite your team",
         "content": "We've automatically created a personal organization and initial project so you can get started with Vibe Kanban. Export your cloud data before shutdown."
       }
+    },
+    "task": {
+      "createWorkspace": "워크스페이스 만들기",
+      "openWorkspace": "워크스페이스 열기"
     }
   },
   "createMode": {

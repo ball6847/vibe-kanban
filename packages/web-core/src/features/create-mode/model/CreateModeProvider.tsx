@@ -57,6 +57,7 @@ export function CreateModeProvider({
       hasResolvedInitialRepoDefaults: state.hasResolvedInitialRepoDefaults,
       preferredExecutorConfig: state.preferredExecutorConfig,
       message: state.message,
+      taskId: state.taskId,
       setMessage: state.setMessage,
       clearDraft: state.clearDraft,
       hasInitialValue: state.hasInitialValue,
