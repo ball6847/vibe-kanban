@@ -178,12 +178,21 @@ print((json.load(sys.stdin).get('data') or {}).get('id') or '')" 2>/dev/null)
       done
       if [ -n "$WSID" ]; then
         OK "submitting creates the workspace and opens it" 6
-        LINK=$(curl -s --max-time 10 "$API/api/workspaces?task_id=$TID" | python3 -c "
+        # The authoritative check: the workspace the UI opened must carry this task id.
+        WS_TASK=""
+        for _ in $(seq 1 10); do
+          WS_TASK=$(curl -s --max-time 8 "$API/api/workspaces/$WSID" | python3 -c "
+import json,sys
+print((json.load(sys.stdin).get('data') or {}).get('task_id') or '')" 2>/dev/null)
+          [ -n "$WS_TASK" ] && break
+          sleep 2
+        done
+        LIST=$(curl -s --max-time 10 "$API/api/workspaces?task_id=$TID" | python3 -c "
 import json,sys
 d=json.load(sys.stdin).get('data') or []
-print(d[0]['id'] if d else '')" 2>/dev/null)
-        if [ "$LINK" = "$WSID" ]; then OK "workspace is linked to the task (API)" 6
-        else NO "workspace is linked to the task (api='${LINK:-none}' ui='$WSID')" 6; fi
+print(','.join(w['id'] for w in d))" 2>/dev/null)
+        if [ "$WS_TASK" = "$TID" ] && [ "$LIST" = "$WSID" ]; then OK "workspace is linked to the task (API)" 6
+        else NO "workspace is linked to the task (ws.task_id='${WS_TASK:-none}' list='${LIST:-none}' task='$TID')" 6; fi
         ab_open "http://localhost:$UI/projects/$PID" >/dev/null
         ab wait "[data-testid=task-card-$TID]" >/dev/null 2>&1
         if [ "$(ab_eval "document.querySelectorAll('[data-testid=task-open-workspace-$WSID]').length")" = "1" ]; then
@@ -193,7 +202,8 @@ print(d[0]['id'] if d else '')" 2>/dev/null)
           case "$(ab_url)" in *"/workspaces/$WSID"*) OK "clicking the link opens the workspace" 3 ;;
             *) NO "clicking the link opens the workspace (url: $(ab_url))" 3 ;; esac
         else NO "task card shows the linked workspace" 4; fi
-        ab screenshot "$EVIDENCE/e2e-create-from-task.png" >/dev/null 2>&1
+        # agent-browser resolves relative paths against the daemon's cwd, so pass an absolute one.
+        ab screenshot "$ROOT/$EVIDENCE/e2e-create-from-task.png" >/dev/null 2>&1
         [ -f "$EVIDENCE/e2e-create-from-task.png" ] && OK "e2e screenshot written" 2 || NO "e2e screenshot written" 2
         curl -s -X DELETE "$API/api/workspaces/$WSID" >/dev/null 2>&1
       else NO "submitting creates the workspace and opens it (url: $(ab_url))" 6; fi

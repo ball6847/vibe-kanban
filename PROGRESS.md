@@ -1,6 +1,6 @@
 # PROGRESS — link tasks to workspaces
 
-**Current state:** M3 done. e2e passes: create action -> create flow (prefilled from the task) ->
+**Current state:** M4 + M6 done. Whole e2e flow green (create-from-task, link, show, open). e2e passes: create action -> create flow (prefilled from the task) ->
 submit -> workspace created, opened and linked (`GET /api/workspaces?task_id=`).
 
 ## Baseline (M0)
@@ -14,9 +14,9 @@ submit -> workspace created, opened and linked (`GET /api/workspaces?task_id=`).
 - [x] M1 - backend write path + read filter, proven with curl (positive/negative/control)
 - [ ] M2 - regenerate types (`CreateAndStartWorkspaceRequest.task_id`)
 - [x] M3 - create-from-task action (prefilled, carries task_id) - **verified e2e via agent-browser**
-- [ ] M4 - task card shows/opens linked workspaces (reusable `IssueWorkspacesSection` in packages/ui)
+- [x] M4 - task card shows/opens linked workspaces (verified e2e)
 - [ ] M5 - agent-browser e2e + evidence
-- [ ] M6 - pure logic (`taskWorkspaceLinkModel.ts`) + vitest
+- [x] M6 - pure logic (`taskWorkspaceLinkModel.ts`) + vitest (34 tests / 4 files)
 - [ ] M7 - docs
 - [ ] M8 - quality pass, full gate green
 

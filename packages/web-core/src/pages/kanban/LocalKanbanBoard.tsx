@@ -1,7 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import type { Task } from 'shared/types';
-import { localProjectsApi, localTasksApi } from '@/shared/lib/api';
+import {
+  localProjectsApi,
+  localTasksApi,
+  workspacesApi,
+} from '@/shared/lib/api';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { usePageTitle } from '@/shared/hooks/usePageTitle';
 import {
@@ -16,6 +21,7 @@ import {
   groupTasksByColumn,
   stepStatus,
 } from './localKanbanModel';
+import { groupWorkspacesByTaskId } from './taskWorkspaceLinkModel';
 
 interface LocalKanbanBoardProps {
   projectId: string;
@@ -24,6 +30,14 @@ interface LocalKanbanBoardProps {
 export function LocalKanbanBoard({ projectId }: LocalKanbanBoardProps) {
   const { t } = useTranslation('common');
   const appNavigation = useAppNavigation();
+  const { data: workspaces = [] } = useQuery({
+    queryKey: ['workspaces'],
+    queryFn: workspacesApi.getAllWorkspaces,
+  });
+  const workspacesByTaskId = useMemo(
+    () => groupWorkspacesByTaskId(workspaces),
+    [workspaces]
+  );
   const [projectName, setProjectName] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -324,6 +338,28 @@ export function LocalKanbanBoard({ projectId }: LocalKanbanBoardProps) {
                             ) : null}
                           </div>
                         )}
+                        {(workspacesByTaskId.get(task.id) ?? []).length > 0 ? (
+                          <div className="mt-half flex flex-wrap items-center gap-half">
+                            {(workspacesByTaskId.get(task.id) ?? []).map(
+                              (workspace) => (
+                                <button
+                                  key={workspace.id}
+                                  type="button"
+                                  data-testid={`task-open-workspace-${workspace.id}`}
+                                  aria-label={t('kanban.task.openWorkspace')}
+                                  title={t('kanban.task.openWorkspace')}
+                                  onClick={() =>
+                                    appNavigation.goToWorkspace(workspace.id)
+                                  }
+                                  className="rounded-sm border border-border px-half text-xs text-low"
+                                >
+                                  {workspace.name ??
+                                    t('kanban.task.openWorkspace')}
+                                </button>
+                              )
+                            )}
+                          </div>
+                        ) : null}
                         <div className="mt-half flex items-center justify-end gap-half">
                           <button
                             type="button"
