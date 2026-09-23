@@ -481,7 +481,9 @@
     },
     "task": {
       "createWorkspace": "워크스페이스 만들기",
-      "openWorkspace": "워크스페이스 열기"
+      "openWorkspace": "워크스페이스 열기",
+      "details": "작업 세부 정보",
+      "close": "닫기"
     }
   },
   "createMode": {

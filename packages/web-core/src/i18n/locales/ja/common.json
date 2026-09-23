@@ -481,7 +481,9 @@
     },
     "task": {
       "createWorkspace": "ワークスペースを作成",
-      "openWorkspace": "ワークスペースを開く"
+      "openWorkspace": "ワークスペースを開く",
+      "details": "タスクの詳細",
+      "close": "閉じる"
     }
   },
   "createMode": {

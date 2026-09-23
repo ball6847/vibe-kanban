@@ -2,7 +2,7 @@ import { LocalKanbanBoard } from '@/pages/kanban/LocalKanbanBoard';
 import { useCurrentKanbanRouteState } from '@/shared/hooks/useCurrentKanbanRouteState';
 
 export function LocalProjectKanban() {
-  const { projectId } = useCurrentKanbanRouteState();
+  const { projectId, issueId } = useCurrentKanbanRouteState();
 
   if (!projectId) {
     return (
@@ -12,5 +12,5 @@ export function LocalProjectKanban() {
     );
   }
 
-  return <LocalKanbanBoard projectId={projectId} />;
+  return <LocalKanbanBoard projectId={projectId} selectedTaskId={issueId} />;
 }

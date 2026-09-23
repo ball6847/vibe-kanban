@@ -481,7 +481,9 @@
     },
     "task": {
       "createWorkspace": "建立工作區",
-      "openWorkspace": "開啟工作區"
+      "openWorkspace": "開啟工作區",
+      "details": "任務詳情",
+      "close": "關閉"
     }
   },
   "createMode": {

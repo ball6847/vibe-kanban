@@ -23,7 +23,7 @@ run that produces **screenshots** plus DOM/API assertions for every capability.
 In scope (all local, no new runtime dependencies):
 
 1. **Clickable task card → selection.** Clicking a card selects the task and reflects it in the URL
-   (`?task=<taskId>`), so the view is linkable and survives reload. Card controls (move/create/delete)
+   (`/projects/<projectId>/issues/<taskId>`), so the view is linkable and survives reload. Card controls (move/create/delete)
    keep working and must not trigger selection.
 2. **Dedicated task detail UI** (right-hand panel, as upstream): title, description, status, workspace,
    inline edit of title/description, delete. Closeable (button and `Escape`).
@@ -77,7 +77,10 @@ Hard criteria (each is a gate section):
 | `task-select-<taskId>`, `kanban-bulk-move`, `kanban-bulk-delete` | bulk actions |
 | `task-create-workspace-<taskId>`, `task-open-workspace-<workspaceId>` | card actions (already exist) |
 
-URL contract: `/projects/<projectId>?task=<taskId>` opens the panel. The create flow's prompt editor is
+URL contract: the selection lives in the URL. The board reuses the project-issue route the codebase
+already declares (`/projects/<projectId>/issues/<taskId>`, reached with `goToProjectIssue`), which the
+existing `resolveKanbanRouteState` turns into `issueId` + `isPanelOpen`; `?task=<taskId>` is accepted as
+an equivalent. Selecting a card sets it, closing the panel returns to `/projects/<projectId>`. The create flow's prompt editor is
 a Lexical `contenteditable` (`aria-label="Markdown editor"`) that does not forward `data-testid`; the
 gate locates it by that label and submits with the composer's `Create` button.
 

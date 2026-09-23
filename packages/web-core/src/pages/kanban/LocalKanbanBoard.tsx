@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { cn } from '@/shared/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import type { Task } from 'shared/types';
@@ -22,12 +23,18 @@ import {
   stepStatus,
 } from './localKanbanModel';
 import { groupWorkspacesByTaskId } from './taskWorkspaceLinkModel';
+import { TaskDetailPanel } from './TaskDetailPanel';
 
 interface LocalKanbanBoardProps {
   projectId: string;
+  /** Task selected by the URL, shown in the detail panel. */
+  selectedTaskId?: string | null;
 }
 
-export function LocalKanbanBoard({ projectId }: LocalKanbanBoardProps) {
+export function LocalKanbanBoard({
+  projectId,
+  selectedTaskId = null,
+}: LocalKanbanBoardProps) {
   const { t } = useTranslation('common');
   const appNavigation = useAppNavigation();
   const { data: workspaces = [] } = useQuery({
@@ -52,6 +59,23 @@ export function LocalKanbanBoard({ projectId }: LocalKanbanBoardProps) {
   const [editingDescription, setEditingDescription] = useState('');
 
   usePageTitle(projectName, 'Projects');
+
+  useEffect(() => {
+    if (!selectedTaskId) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        appNavigation.goToProject(projectId);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [appNavigation, projectId, selectedTaskId]);
+
+  const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -156,6 +180,14 @@ export function LocalKanbanBoard({ projectId }: LocalKanbanBoardProps) {
    * title/description as the prompt plus the task id, which the start request
    * forwards so the new workspace is linked back to the task.
    */
+  const handleSelectTask = (taskId: string) => {
+    if (selectedTaskId === taskId) {
+      return;
+    }
+
+    appNavigation.goToProjectIssue(projectId, taskId);
+  };
+
   const handleCreateWorkspace = async (task: Task) => {
     const prompt = buildWorkspaceCreatePrompt(task.title, task.description);
     await persistWorkspaceCreateDraft(
@@ -259,157 +291,196 @@ export function LocalKanbanBoard({ projectId }: LocalKanbanBoardProps) {
           </button>
         </div>
       ) : null}
-      <div className="flex min-h-0 flex-1 snap-x snap-mandatory gap-base overflow-x-auto p-base sm:snap-none">
-        {COLUMNS.map((column) => {
-          const columnTasks = column.status.flatMap(
-            (status) => tasksByColumn.get(status) ?? []
-          );
-          return (
-            <section
-              key={column.label}
-              aria-label={column.label}
-              className="flex w-[85vw] shrink-0 snap-center flex-col rounded-sm border border-border bg-secondary sm:w-72"
-            >
-              <header className="flex items-center justify-between px-base py-half">
-                <h2 className="text-sm font-semibold text-high">
-                  {column.label}
-                </h2>
-                <span className="text-xs text-low">{columnTasks.length}</span>
-              </header>
-              <div className="flex min-h-0 flex-1 flex-col gap-half overflow-y-auto p-half">
-                {columnTasks.length === 0 ? (
-                  <p className="px-half py-base text-center text-xs text-low">
-                    No tasks
-                  </p>
-                ) : (
-                  columnTasks.map((task) => {
-                    const atStart =
-                      task.status === 'todo' || busyTaskId === task.id;
-                    const atEnd =
-                      task.status === 'done' ||
-                      task.status === 'cancelled' ||
-                      busyTaskId === task.id;
-                    return (
-                      <article
-                        key={task.id}
-                        data-testid={`task-card-${task.id}`}
-                        className="rounded-sm border border-border bg-primary p-half"
-                      >
-                        {editingTaskId === task.id ? (
-                          <div className="flex flex-col gap-half">
-                            <input
-                              aria-label="Edit task title"
-                              autoFocus
-                              value={editingTitle}
-                              onChange={(e) => setEditingTitle(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter')
-                                  void handleSaveEdit(task);
-                                if (e.key === 'Escape') setEditingTaskId(null);
-                              }}
-                              className="w-full rounded-sm border border-border bg-secondary px-half py-half text-sm text-normal"
-                            />
-                            <textarea
-                              aria-label="Edit task description"
-                              value={editingDescription}
-                              onChange={(e) =>
-                                setEditingDescription(e.target.value)
-                              }
-                              onKeyDown={(e) => {
-                                if (e.key === 'Escape') setEditingTaskId(null);
-                              }}
-                              onBlur={() => void handleSaveEdit(task)}
-                              rows={3}
-                              placeholder="Description (optional)"
-                              className="w-full rounded-sm border border-border bg-secondary px-half py-half text-xs text-normal placeholder:text-low"
-                            />
-                          </div>
-                        ) : (
-                          <div
-                            className="cursor-text"
-                            onDoubleClick={() => startEditing(task)}
-                            title="Double-click to edit"
-                          >
-                            <p className="text-sm text-normal">{task.title}</p>
-                            {task.description ? (
-                              <p className="mt-half line-clamp-3 text-xs text-low">
-                                {task.description}
+      <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1 snap-x snap-mandatory gap-base overflow-x-auto p-base sm:snap-none">
+          {COLUMNS.map((column) => {
+            const columnTasks = column.status.flatMap(
+              (status) => tasksByColumn.get(status) ?? []
+            );
+            return (
+              <section
+                key={column.label}
+                aria-label={column.label}
+                className="flex w-[85vw] shrink-0 snap-center flex-col rounded-sm border border-border bg-secondary sm:w-72"
+              >
+                <header className="flex items-center justify-between px-base py-half">
+                  <h2 className="text-sm font-semibold text-high">
+                    {column.label}
+                  </h2>
+                  <span className="text-xs text-low">{columnTasks.length}</span>
+                </header>
+                <div className="flex min-h-0 flex-1 flex-col gap-half overflow-y-auto p-half">
+                  {columnTasks.length === 0 ? (
+                    <p className="px-half py-base text-center text-xs text-low">
+                      No tasks
+                    </p>
+                  ) : (
+                    columnTasks.map((task) => {
+                      const atStart =
+                        task.status === 'todo' || busyTaskId === task.id;
+                      const atEnd =
+                        task.status === 'done' ||
+                        task.status === 'cancelled' ||
+                        busyTaskId === task.id;
+                      return (
+                        <article
+                          key={task.id}
+                          data-testid={`task-card-${task.id}`}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={task.title}
+                          onClick={() => handleSelectTask(task.id)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              handleSelectTask(task.id);
+                            }
+                          }}
+                          className={cn(
+                            'cursor-pointer rounded-sm border bg-primary p-half',
+                            selectedTaskId === task.id
+                              ? 'border-brand'
+                              : 'border-border'
+                          )}
+                        >
+                          {editingTaskId === task.id ? (
+                            <div
+                              className="flex flex-col gap-half"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <input
+                                aria-label="Edit task title"
+                                autoFocus
+                                value={editingTitle}
+                                onChange={(e) =>
+                                  setEditingTitle(e.target.value)
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter')
+                                    void handleSaveEdit(task);
+                                  if (e.key === 'Escape')
+                                    setEditingTaskId(null);
+                                }}
+                                className="w-full rounded-sm border border-border bg-secondary px-half py-half text-sm text-normal"
+                              />
+                              <textarea
+                                aria-label="Edit task description"
+                                value={editingDescription}
+                                onChange={(e) =>
+                                  setEditingDescription(e.target.value)
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Escape')
+                                    setEditingTaskId(null);
+                                }}
+                                onBlur={() => void handleSaveEdit(task)}
+                                rows={3}
+                                placeholder="Description (optional)"
+                                className="w-full rounded-sm border border-border bg-secondary px-half py-half text-xs text-normal placeholder:text-low"
+                              />
+                            </div>
+                          ) : (
+                            <div
+                              className="cursor-text"
+                              onDoubleClick={() => startEditing(task)}
+                              title="Double-click to edit"
+                            >
+                              <p className="text-sm text-normal">
+                                {task.title}
                               </p>
-                            ) : null}
+                              {task.description ? (
+                                <p className="mt-half line-clamp-3 text-xs text-low">
+                                  {task.description}
+                                </p>
+                              ) : null}
+                            </div>
+                          )}
+                          {(workspacesByTaskId.get(task.id) ?? []).length >
+                          0 ? (
+                            <div
+                              className="mt-half flex flex-wrap items-center gap-half"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              {(workspacesByTaskId.get(task.id) ?? []).map(
+                                (workspace) => (
+                                  <button
+                                    key={workspace.id}
+                                    type="button"
+                                    data-testid={`task-open-workspace-${workspace.id}`}
+                                    aria-label={t('kanban.task.openWorkspace')}
+                                    title={t('kanban.task.openWorkspace')}
+                                    onClick={() =>
+                                      appNavigation.goToWorkspace(workspace.id)
+                                    }
+                                    className="rounded-sm border border-border px-half text-xs text-low"
+                                  >
+                                    {workspace.name ??
+                                      t('kanban.task.openWorkspace')}
+                                  </button>
+                                )
+                              )}
+                            </div>
+                          ) : null}
+                          <div
+                            className="mt-half flex items-center justify-end gap-half"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              aria-label={`Move ${task.title} back`}
+                              title={`Move back from ${STATUS_LABEL[task.status]}`}
+                              disabled={atStart}
+                              onClick={() => void handleMove(task, -1)}
+                              className="rounded-sm px-half text-xs text-low disabled:opacity-30"
+                            >
+                              ‹
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Move ${task.title} forward`}
+                              title={`Move forward from ${STATUS_LABEL[task.status]}`}
+                              disabled={atEnd}
+                              onClick={() => void handleMove(task, 1)}
+                              className="rounded-sm px-half text-xs text-low disabled:opacity-30"
+                            >
+                              ›
+                            </button>
+                            <button
+                              type="button"
+                              data-testid={`task-create-workspace-${task.id}`}
+                              aria-label={t('kanban.task.createWorkspace')}
+                              title={t('kanban.task.createWorkspace')}
+                              disabled={busyTaskId === task.id}
+                              onClick={() => void handleCreateWorkspace(task)}
+                              className="rounded-sm px-half text-xs text-low disabled:opacity-30"
+                            >
+                              +
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Delete ${task.title}`}
+                              disabled={busyTaskId === task.id}
+                              onClick={() => void handleDelete(task.id)}
+                              className="rounded-sm px-half text-xs text-low disabled:opacity-30"
+                            >
+                              ×
+                            </button>
                           </div>
-                        )}
-                        {(workspacesByTaskId.get(task.id) ?? []).length > 0 ? (
-                          <div className="mt-half flex flex-wrap items-center gap-half">
-                            {(workspacesByTaskId.get(task.id) ?? []).map(
-                              (workspace) => (
-                                <button
-                                  key={workspace.id}
-                                  type="button"
-                                  data-testid={`task-open-workspace-${workspace.id}`}
-                                  aria-label={t('kanban.task.openWorkspace')}
-                                  title={t('kanban.task.openWorkspace')}
-                                  onClick={() =>
-                                    appNavigation.goToWorkspace(workspace.id)
-                                  }
-                                  className="rounded-sm border border-border px-half text-xs text-low"
-                                >
-                                  {workspace.name ??
-                                    t('kanban.task.openWorkspace')}
-                                </button>
-                              )
-                            )}
-                          </div>
-                        ) : null}
-                        <div className="mt-half flex items-center justify-end gap-half">
-                          <button
-                            type="button"
-                            aria-label={`Move ${task.title} back`}
-                            title={`Move back from ${STATUS_LABEL[task.status]}`}
-                            disabled={atStart}
-                            onClick={() => void handleMove(task, -1)}
-                            className="rounded-sm px-half text-xs text-low disabled:opacity-30"
-                          >
-                            ‹
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`Move ${task.title} forward`}
-                            title={`Move forward from ${STATUS_LABEL[task.status]}`}
-                            disabled={atEnd}
-                            onClick={() => void handleMove(task, 1)}
-                            className="rounded-sm px-half text-xs text-low disabled:opacity-30"
-                          >
-                            ›
-                          </button>
-                          <button
-                            type="button"
-                            data-testid={`task-create-workspace-${task.id}`}
-                            aria-label={t('kanban.task.createWorkspace')}
-                            title={t('kanban.task.createWorkspace')}
-                            disabled={busyTaskId === task.id}
-                            onClick={() => void handleCreateWorkspace(task)}
-                            className="rounded-sm px-half text-xs text-low disabled:opacity-30"
-                          >
-                            +
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`Delete ${task.title}`}
-                            disabled={busyTaskId === task.id}
-                            onClick={() => void handleDelete(task.id)}
-                            className="rounded-sm px-half text-xs text-low disabled:opacity-30"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </article>
-                    );
-                  })
-                )}
-              </div>
-            </section>
-          );
-        })}
+                        </article>
+                      );
+                    })
+                  )}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+        {selectedTask ? (
+          <TaskDetailPanel
+            task={selectedTask}
+            onClose={() => appNavigation.goToProject(projectId)}
+          />
+        ) : null}
       </div>
     </div>
   );

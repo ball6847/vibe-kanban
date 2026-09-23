@@ -481,7 +481,9 @@
     },
     "task": {
       "createWorkspace": "Crear espacio de trabajo",
-      "openWorkspace": "Abrir espacio de trabajo"
+      "openWorkspace": "Abrir espacio de trabajo",
+      "details": "Detalles de la tarea",
+      "close": "Cerrar"
     }
   },
   "createMode": {

@@ -183,19 +183,27 @@ print((json.load(sys.stdin).get('data') or {}).get('id') or '')" 2>/dev/null)
       # --- selection: click the card, the URL carries the choice, the panel opens
       ab click "[data-testid=task-card-$TID]" >/dev/null 2>&1
       sleep 2
-      case "$(ab_url)" in *"task=$TID"*) OK "card click selects the task in the URL" 5 ;;
+      case "$(ab_url)" in *"/issues/$TID"*|*"task=$TID"*) OK "card click selects the task in the URL" 5 ;;
         *) NO "card click selects the task in the URL (url: $(ab_url))" 5 ;; esac
       if [ "$(ab_count "[data-testid=task-detail-panel]")" = "1" ]; then
         OK "task detail panel opens" 6
         shot 02-task-detail-panel 5
         # reload must keep the panel (the selection is in the URL)
-        ab_open "http://localhost:$UI/projects/$PID?task=$TID" >/dev/null
+        ab_open "http://localhost:$UI/projects/$PID/issues/$TID" >/dev/null
         ab wait "[data-testid=task-detail-panel]" >/dev/null 2>&1
         [ "$(ab_count "[data-testid=task-detail-panel]")" = "1" ] \
           && OK "selection survives a reload" 4 || NO "selection survives a reload" 4
+        # Escape closes the panel, and the URL goes back to the plain board.
+        ab press Escape >/dev/null 2>&1
+        sleep 1
+        [ "$(ab_count "[data-testid=task-detail-panel]")" = "0" ] \
+          && OK "Escape closes the panel" 4 || NO "Escape closes the panel" 4
+        ab_open "http://localhost:$UI/projects/$PID/issues/$TID" >/dev/null
+        ab wait "[data-testid=task-detail-panel]" >/dev/null 2>&1
         # title is shown, and editing it persists
-        if [ "$(ab_count "[data-testid=task-detail-title]")" = "1" ] && [ "$(ab_count "[data-testid=task-detail-edit-title]")" = "1" ]; then
-          OK "panel shows the task title" 3
+        [ "$(ab_count "[data-testid=task-detail-title]")" = "1" ] \
+          && OK "panel shows the task title" 3 || NO "panel shows the task title" 3
+        if [ "$(ab_count "[data-testid=task-detail-edit-title]")" = "1" ]; then
           NEWTITLE="renamed by e2e $STAMP"
           ab click "[data-testid=task-detail-edit-title]" >/dev/null 2>&1
           sleep 1
@@ -210,7 +218,6 @@ print((json.load(sys.stdin).get('data') or {}).get('id') or '')" 2>/dev/null)
           [ "$SAVED" = "$NEWTITLE" ] && OK "editing the title in the panel persists" 6 \
             || NO "editing the title in the panel persists (api: '${SAVED:0:28}')" 6
         else
-          NO "panel shows the task title" 3
           NO "editing the title in the panel persists" 6
         fi
         # --- workspace section: create it from the panel (prefilled), then check the link
@@ -242,7 +249,7 @@ print((json.load(sys.stdin).get('data') or {}).get('task_id') or '')" 2>/dev/nul
           else NO "the workspace is linked to the task (ws='${WSID:-none}' task_id='${WS_TASK:-none}')" 6; fi
           # 1:1 — asking for a second workspace must not create one
           BEFORE=$(workspaces_of_task)
-          ab_open "http://localhost:$UI/projects/$PID?task=$TID" >/dev/null
+          ab_open "http://localhost:$UI/projects/$PID/issues/$TID" >/dev/null
           ab wait "[data-testid=task-detail-panel]" >/dev/null 2>&1
           if [ "$(ab_count "[data-testid=task-detail-create-workspace]")" = "1" ]; then
             ab click "[data-testid=task-detail-create-workspace]" >/dev/null 2>&1
@@ -262,7 +269,7 @@ print((json.load(sys.stdin).get('data') or {}).get('task_id') or '')" 2>/dev/nul
           case "$MINE" in in_progress|in_review|done) OK "task status advanced by itself (${MINE})" 8 ;;
             *) NO "task status advanced by itself (still '${MINE:-unknown}')" 8 ;; esac
           # --- open the workspace from the panel
-          ab_open "http://localhost:$UI/projects/$PID?task=$TID" >/dev/null
+          ab_open "http://localhost:$UI/projects/$PID/issues/$TID" >/dev/null
           ab wait "[data-testid=task-detail-panel]" >/dev/null 2>&1
           shot 04-task-detail-workspace 4
           if [ "$(ab_count "[data-testid=task-detail-open-workspace]")" = "1" ]; then
@@ -271,13 +278,6 @@ print((json.load(sys.stdin).get('data') or {}).get('task_id') or '')" 2>/dev/nul
             case "$(ab_url)" in *"/workspaces/"*) OK "panel jumps to the workspace" 5 ;;
               *) NO "panel jumps to the workspace (url: $(ab_url))" 5 ;; esac
           else NO "panel jumps to the workspace" 5; fi
-          # --- Escape closes the panel
-          ab_open "http://localhost:$UI/projects/$PID?task=$TID" >/dev/null
-          ab wait "[data-testid=task-detail-panel]" >/dev/null 2>&1
-          ab press Escape >/dev/null 2>&1
-          sleep 1
-          [ "$(ab_count "[data-testid=task-detail-panel]")" = "0" ] \
-            && OK "Escape closes the panel" 4 || NO "Escape closes the panel" 4
           shot 05-board-with-status 3
           curl -s -X DELETE "$API/api/workspaces/$WSID" >/dev/null 2>&1
         else
@@ -287,7 +287,6 @@ print((json.load(sys.stdin).get('data') or {}).get('task_id') or '')" 2>/dev/nul
           NO "1:1 holds — a second create does not duplicate" 6
           NO "task status advanced by itself" 8
           NO "panel jumps to the workspace" 5
-          NO "Escape closes the panel" 4
         fi
       else
         NO "task detail panel opens" 6
@@ -295,7 +294,7 @@ print((json.load(sys.stdin).get('data') or {}).get('task_id') or '')" 2>/dev/nul
                    "editing the title in the panel persists:6" "panel offers the workspace action:4" \
                    "create flow is prefilled from the task:4" "the workspace is linked to the task:6" \
                    "1:1 holds — a second create does not duplicate:6" "task status advanced by itself:8" \
-                   "panel jumps to the workspace:5" "Escape closes the panel:4"; do
+                   "panel jumps to the workspace:5"; do
           NO "${lbl%:*}" "${lbl##*:}"
         done
       fi

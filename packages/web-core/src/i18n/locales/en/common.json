@@ -495,7 +495,9 @@
     },
     "task": {
       "createWorkspace": "Create workspace",
-      "openWorkspace": "Open workspace"
+      "openWorkspace": "Open workspace",
+      "details": "Task details",
+      "close": "Close"
     }
   },
   "createMode": {
