@@ -494,6 +494,12 @@
       "editDescription": "编辑描述",
       "workspace": "工作区",
       "noWorkspace": "尚无工作区"
+    },
+    "filter": {
+      "placeholder": "筛选任务…",
+      "status": "按状态筛选",
+      "all": "全部",
+      "clear": "清除筛选"
     }
   },
   "createMode": {

@@ -494,6 +494,12 @@
       "editDescription": "説明を編集",
       "workspace": "ワークスペース",
       "noWorkspace": "ワークスペースはまだありません"
+    },
+    "filter": {
+      "placeholder": "タスクを絞り込む…",
+      "status": "ステータスで絞り込む",
+      "all": "すべて",
+      "clear": "フィルターを解除"
     }
   },
   "createMode": {

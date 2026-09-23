@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/shared/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import type { Task } from 'shared/types';
+import type { Task, TaskStatus } from 'shared/types';
 import {
   localProjectsApi,
   localTasksApi,
@@ -25,6 +25,12 @@ import {
 import { groupWorkspacesByTaskId } from './taskWorkspaceLinkModel';
 import { TaskDetailPanel } from './TaskDetailPanel';
 import { canTransitionTaskStatus } from './taskStatus';
+import {
+  EMPTY_TASK_FILTERS,
+  filterTasks,
+  isFiltering,
+  type TaskFilters,
+} from './taskFilters';
 
 interface LocalKanbanBoardProps {
   projectId: string;
@@ -52,6 +58,7 @@ export function LocalKanbanBoard({
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [filters, setFilters] = useState<TaskFilters>(EMPTY_TASK_FILTERS);
   const [isCreating, setIsCreating] = useState(false);
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
@@ -99,7 +106,11 @@ export function LocalKanbanBoard({
     };
   }, [projectId, reloadToken]);
 
-  const tasksByColumn = groupTasksByColumn(tasks);
+  const visibleTasks = useMemo(
+    () => filterTasks(tasks, filters),
+    [tasks, filters]
+  );
+  const tasksByColumn = groupTasksByColumn(visibleTasks);
 
   const handleCreate = async () => {
     const title = newTaskTitle.trim();
@@ -267,7 +278,7 @@ export function LocalKanbanBoard({
           {projectName}
         </h1>
         <span className="shrink-0 text-xs text-low">
-          {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'}
+          {visibleTasks.length} {visibleTasks.length === 1 ? 'task' : 'tasks'}
         </span>
       </div>
       <div className="flex shrink-0 gap-half p-base pb-0">
@@ -289,6 +300,51 @@ export function LocalKanbanBoard({
         >
           Add
         </button>
+      </div>
+      <div className="flex shrink-0 items-center gap-half px-base pt-half">
+        <input
+          data-testid="kanban-filter-input"
+          aria-label={t('kanban.filter.placeholder')}
+          value={filters.text}
+          onChange={(event) =>
+            setFilters((previous) => ({
+              ...previous,
+              text: event.target.value,
+            }))
+          }
+          placeholder={t('kanban.filter.placeholder')}
+          className="min-w-0 flex-1 rounded-sm border border-border bg-secondary px-half py-half text-xs text-normal placeholder:text-low"
+        />
+        <select
+          data-testid="kanban-filter-status"
+          aria-label={t('kanban.filter.status')}
+          value={filters.status}
+          onChange={(event) =>
+            setFilters((previous) => ({
+              ...previous,
+              status: event.target.value as TaskFilters['status'],
+            }))
+          }
+          className="shrink-0 rounded-sm border border-border bg-secondary px-half py-half text-xs text-normal"
+        >
+          <option value="all">{t('kanban.filter.all')}</option>
+          {(Object.keys(STATUS_LABEL) as TaskStatus[]).map((status) => (
+            <option key={status} value={status}>
+              {STATUS_LABEL[status]}
+            </option>
+          ))}
+        </select>
+        {isFiltering(filters) ? (
+          <button
+            type="button"
+            data-testid="kanban-filter-clear"
+            aria-label={t('kanban.filter.clear')}
+            onClick={() => setFilters(EMPTY_TASK_FILTERS)}
+            className="shrink-0 rounded-sm border border-border px-half py-half text-xs text-low"
+          >
+            ×
+          </button>
+        ) : null}
       </div>
       {actionError ? (
         <div className="flex shrink-0 items-center justify-between gap-half px-base pt-half">

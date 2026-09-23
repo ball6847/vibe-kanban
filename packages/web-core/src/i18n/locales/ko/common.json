@@ -494,6 +494,12 @@
       "editDescription": "설명 편집",
       "workspace": "워크스페이스",
       "noWorkspace": "아직 워크스페이스가 없습니다"
+    },
+    "filter": {
+      "placeholder": "작업 필터…",
+      "status": "상태로 필터",
+      "all": "전체",
+      "clear": "필터 지우기"
     }
   },
   "createMode": {

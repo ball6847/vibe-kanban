@@ -494,6 +494,12 @@
       "editDescription": "Modifier la description",
       "workspace": "Espace de travail",
       "noWorkspace": "Pas encore d'espace de travail"
+    },
+    "filter": {
+      "placeholder": "Filtrer les tâches…",
+      "status": "Filtrer par statut",
+      "all": "Toutes",
+      "clear": "Effacer le filtre"
     }
   },
   "createMode": {

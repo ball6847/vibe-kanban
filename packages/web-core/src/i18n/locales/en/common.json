@@ -508,6 +508,12 @@
       "editDescription": "Edit description",
       "workspace": "Workspace",
       "noWorkspace": "No workspace yet"
+    },
+    "filter": {
+      "placeholder": "Filter tasks…",
+      "status": "Filter by status",
+      "all": "All",
+      "clear": "Clear filter"
     }
   },
   "createMode": {
