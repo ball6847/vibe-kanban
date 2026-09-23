@@ -491,7 +491,9 @@
       "title": "标题",
       "description": "描述",
       "editTitle": "编辑标题",
-      "editDescription": "编辑描述"
+      "editDescription": "编辑描述",
+      "workspace": "工作区",
+      "noWorkspace": "尚无工作区"
     }
   },
   "createMode": {

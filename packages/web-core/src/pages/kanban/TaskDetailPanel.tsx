@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Task } from 'shared/types';
+import type { Task, Workspace } from 'shared/types';
 import { localTasksApi } from '@/shared/lib/api';
 import { STATUS_LABEL } from './localKanbanModel';
 
 interface TaskDetailPanelProps {
   task: Task;
+  /** The task's single workspace, when it has one. */
+  workspace: Workspace | null;
   onClose: () => void;
   onUpdated: (task: Task) => void;
   onDeleted: (taskId: string) => void;
+  onOpenWorkspace: () => void;
+  onCreateWorkspace: () => void;
 }
 
 type EditingField = 'title' | 'description' | null;
@@ -21,9 +25,12 @@ type EditingField = 'title' | 'description' | null;
  */
 export function TaskDetailPanel({
   task,
+  workspace,
   onClose,
   onUpdated,
   onDeleted,
+  onOpenWorkspace,
+  onCreateWorkspace,
 }: TaskDetailPanelProps) {
   const { t } = useTranslation('common');
   const [editing, setEditing] = useState<EditingField>(null);
@@ -217,6 +224,41 @@ export function TaskDetailPanel({
           >
             {task.description || '—'}
           </p>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-half">
+        <h3 className="text-xs font-medium text-low">
+          {t('kanban.task.workspace')}
+        </h3>
+        {workspace ? (
+          <div className="flex flex-col gap-half">
+            <span className="truncate text-sm text-normal">
+              {workspace.name ?? workspace.branch}
+            </span>
+            <button
+              type="button"
+              data-testid="task-detail-open-workspace"
+              onClick={onOpenWorkspace}
+              className="self-start rounded-sm border border-border px-half py-half text-xs text-normal"
+            >
+              {t('kanban.task.openWorkspace')}
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-half">
+            <span className="text-sm text-low">
+              {t('kanban.task.noWorkspace')}
+            </span>
+            <button
+              type="button"
+              data-testid="task-detail-create-workspace"
+              onClick={onCreateWorkspace}
+              className="self-start rounded-sm bg-brand px-half py-half text-xs font-medium text-on-brand"
+            >
+              {t('kanban.task.createWorkspace')}
+            </button>
+          </div>
         )}
       </div>
 

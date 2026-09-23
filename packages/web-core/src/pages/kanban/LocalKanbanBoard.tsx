@@ -189,6 +189,14 @@ export function LocalKanbanBoard({
   };
 
   const handleCreateWorkspace = async (task: Task) => {
+    // 1:1 — when the task already has a workspace, opening it is the only
+    // sensible answer to "create one" (the database enforces the same rule).
+    const existing = workspacesByTaskId.get(task.id)?.[0];
+    if (existing) {
+      appNavigation.goToWorkspace(existing.id);
+      return;
+    }
+
     const prompt = buildWorkspaceCreatePrompt(task.title, task.description);
     await persistWorkspaceCreateDraft(
       buildWorkspaceCreateInitialState({ prompt, taskId: task.id }),
@@ -479,6 +487,14 @@ export function LocalKanbanBoard({
           <TaskDetailPanel
             key={selectedTask.id}
             task={selectedTask}
+            workspace={workspacesByTaskId.get(selectedTask.id)?.[0] ?? null}
+            onOpenWorkspace={() => {
+              const workspace = workspacesByTaskId.get(selectedTask.id)?.[0];
+              if (workspace) {
+                appNavigation.goToWorkspace(workspace.id);
+              }
+            }}
+            onCreateWorkspace={() => void handleCreateWorkspace(selectedTask)}
             onClose={() => appNavigation.goToProject(projectId)}
             onUpdated={(updated) =>
               setTasks((previous) =>

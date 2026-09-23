@@ -505,7 +505,9 @@
       "title": "Title",
       "description": "Description",
       "editTitle": "Edit title",
-      "editDescription": "Edit description"
+      "editDescription": "Edit description",
+      "workspace": "Workspace",
+      "noWorkspace": "No workspace yet"
     }
   },
   "createMode": {

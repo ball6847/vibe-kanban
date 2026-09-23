@@ -154,3 +154,11 @@ diagnostic naming what is missing.
   gate sections rebuild `target/`, so restart the stack after a full run.
 - Run the e2e **before** the Rust gates (they starve `cargo watch` and can kill the API the browser needs).
 - Fixtures (repo, project, task, workspace) are created and deleted by the gate itself.
+- The dev stack's database is `dev_assets/db.v2.sqlite` (gitignored) — not
+  `~/.local/share/vibe-kanban/*.sqlite`, which is a stale file from an older install; query the former to
+  check schema state. Give both the API and the frontend their own killed-and-restarted stack: a stale
+  instance holding 3003/3004 while a new one takes 3004/3005 makes the API's `VK_ALLOWED_ORIGINS` reject
+  the browser's origin, so every mutation answers a bodyless 403 that looks like a broken feature.
+- Migrations are embedded at compile time (`sqlx::migrate!`), and a touched `crates/db` source can take
+  ~8 minutes to rebuild: after adding a migration, wait for the rebuild to finish *and* restart the API,
+  then confirm the index in `dev_assets/db.v2.sqlite` before trusting it.

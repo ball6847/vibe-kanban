@@ -74,6 +74,19 @@ have "$PANEL" 'task-detail-create-workspace' && OK "panel creates the workspace"
 MIGRATION_UNIQUE=$(grep -rlE 'UNIQUE INDEX.*workspace.*task_id|task_id.*UNIQUE' crates/db/migrations 2>/dev/null | head -1)
 [ -n "$MIGRATION_UNIQUE" ] && OK "migration enforces one workspace per task (${MIGRATION_UNIQUE##*/})" 6 \
   || NO "migration enforces one workspace per task" 6
+# A migration file proves intent; the live database proves it was applied.
+python3 - <<'PYT' && OK "the live database has the 1:1 index" 3 || NO "the live database has the 1:1 index" 3
+import sqlite3, sys
+for path in ('dev_assets/db.v2.sqlite', 'dev_assets/db.sqlite'):
+    try:
+        db = sqlite3.connect(f'file:{path}?mode=ro', uri=True)
+        rows = db.execute("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='workspaces'").fetchall()
+    except Exception:
+        continue
+    if any('task_id' in r[0] for r in rows):
+        sys.exit(0)
+sys.exit(1)
+PYT
 grep -rqE 'existing|reuse' "$KANBAN"/taskWorkspaceLinkModel.ts "$BOARD" 2>/dev/null \
   && OK "create-from-task reuses the linked workspace" 3 || NO "create-from-task reuses the linked workspace" 3
 

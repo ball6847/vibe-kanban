@@ -491,7 +491,9 @@
       "title": "Título",
       "description": "Descripción",
       "editTitle": "Editar título",
-      "editDescription": "Editar descripción"
+      "editDescription": "Editar descripción",
+      "workspace": "Espacio de trabajo",
+      "noWorkspace": "Todavía no hay espacio de trabajo"
     }
   },
   "createMode": {

@@ -491,7 +491,9 @@
       "title": "タイトル",
       "description": "説明",
       "editTitle": "タイトルを編集",
-      "editDescription": "説明を編集"
+      "editDescription": "説明を編集",
+      "workspace": "ワークスペース",
+      "noWorkspace": "ワークスペースはまだありません"
     }
   },
   "createMode": {
