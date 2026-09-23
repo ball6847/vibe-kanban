@@ -383,6 +383,9 @@ print((json.load(sys.stdin).get('data') or {}).get('task_id') or '')" 2>/dev/nul
     [ "$FOCUSED" = "kanban-filter-input" ] && OK "the '/' shortcut focuses the filter" 3 \
       || NO "the '/' shortcut focuses the filter (focused: '${FOCUSED:-none}')" 3
     ab press Escape >/dev/null 2>&1
+    # `c` is deliberately ignored while a field has focus, so leave the filter first.
+    ab_eval "document.activeElement?.blur()" >/dev/null 2>&1
+    sleep 1
     ab press c >/dev/null 2>&1
     sleep 1
     FOCUSED=$(ab_eval "document.activeElement?.getAttribute('aria-label') || ''")
