@@ -159,3 +159,54 @@ One commit per milestone, Conventional Commits, repo left type-checking.
 - Browser:
   `agent-browser --session vibe-goal-check open <url> --args "--no-sandbox"` ·
   `… eval "<js>"` · `… get url` · `… click "[data-testid=…]"` · `… screenshot <path>`
+
+---
+
+# Revision 2 — the task is the primary object (operator feedback, 2026-02-24)
+
+## What history shows (evidence, not memory)
+
+- **The deep link already exists as a dead path.** `origin/main` and this branch still ship
+  `/projects/$projectId/issues/$issueId` and `.../issues/$issueId_/workspaces/$workspaceId`, but all of
+  them render `LocalProjectKanban`, and the selector that used to drive them
+  (`packages/web-core/src/project-routes/project-search.ts`) is now `z.object({})` — the selection
+  params were stripped with remote support. `useCurrentKanbanRouteState` returns only `projectId`, so
+  the params are ignored and every one of those URLs shows the plain board.
+- **The dedicated task UI was a right-hand panel on the board, not a separate page.**
+  `origin/main:packages/web-core/src/pages/kanban/ProjectRightSidebarContainer.tsx` resolved a
+  selection into `{ kind: 'issue', issueId, resolution }` or `{ kind: 'issue-workspace', workspaceId }`
+  and jumped with `appNavigation.goToWorkspace(workspaceId)` — exactly the "task detail → workspace"
+  hop the operator describes. That file was deleted with remote support.
+- **Task state used to be automatic.** `Task::update_status` no longer exists on this branch (only
+  `PullRequest::update_status` survives). Upstream drove it from the execution lifecycle:
+  `services/container.rs:938` start → `InProgress`; `container.rs:164/1035` completion → `InReview`;
+  `services/pr_monitor.rs:131` PR merge → `Done`; `services/approvals.rs` review round-trips →
+  `InReview`/`InProgress`. All of those local lifecycle points (`start_workspace`, `start_execution`,
+  `stop_execution`) are still present, so the automation is re-attachable, not inventable.
+- **The relationship is 1:1.** The operator's model: a task owns at most one workspace. Nothing
+  enforces it today: `GET /api/workspaces?task_id=` returns a list, the create flow can be entered
+  repeatedly, and `workspace.task_id` has no uniqueness constraint.
+
+## Requirements (new hard gates)
+
+1. **A task card is clickable** and selects the task (the card's own controls keep working and must not
+   trigger selection). Selection is reflected in the URL so it is linkable and reloadable.
+2. **A task has a dedicated detail UI** showing title, description, status and its workspace, with a
+   **jump to the workspace**. Hooks: `data-testid="task-detail-panel"`,
+   `data-testid="task-detail-open-workspace"`.
+3. **1:1, enforced**: at most one workspace per task. Enforced in the database (partial unique index on
+   `workspace.task_id`), so a second create-from-task returns/opens the existing workspace instead of
+   making a duplicate. Gate: creating twice from the same task yields one workspace.
+4. **Task state is automatic**: starting a workspace's execution moves the task to `InProgress`;
+   the execution finishing moves it to `InReview`; a merged PR moves it to `Done`. Transitions are
+   forward-only (never silently walk a task back), pure and unit tested, and never override an
+   operator's explicit `Cancelled`/`Done`. Gate: after the e2e creates a workspace from a task, the
+   task's status is `in_progress` without anyone clicking a move button.
+
+## Milestones
+
+- [ ] M9 — selection plumbing (`projectSearchSchema` params, `useCurrentKanbanRouteState`, clickable card)
+- [ ] M10 — task detail panel + workspace jump (test ids above, i18n in all 7 locales)
+- [ ] M11 — 1:1 enforcement (migration + create-from-task reuses the linked workspace)
+- [ ] M12 — automated task status (guarded `Task::update_status` + lifecycle hooks + unit tests)
+- [ ] M13 — gate + e2e for all of the above
