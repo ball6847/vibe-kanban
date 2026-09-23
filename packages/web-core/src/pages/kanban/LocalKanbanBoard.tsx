@@ -477,8 +477,22 @@ export function LocalKanbanBoard({
         </div>
         {selectedTask ? (
           <TaskDetailPanel
+            key={selectedTask.id}
             task={selectedTask}
             onClose={() => appNavigation.goToProject(projectId)}
+            onUpdated={(updated) =>
+              setTasks((previous) =>
+                previous.map((task) =>
+                  task.id === updated.id ? updated : task
+                )
+              )
+            }
+            onDeleted={(taskId) => {
+              setTasks((previous) =>
+                previous.filter((task) => task.id !== taskId)
+              );
+              appNavigation.goToProject(projectId);
+            }}
           />
         ) : null}
       </div>

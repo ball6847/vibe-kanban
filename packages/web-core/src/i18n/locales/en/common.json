@@ -497,7 +497,15 @@
       "createWorkspace": "Create workspace",
       "openWorkspace": "Open workspace",
       "details": "Task details",
-      "close": "Close"
+      "close": "Close",
+      "edit": "Edit",
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "title": "Title",
+      "description": "Description",
+      "editTitle": "Edit title",
+      "editDescription": "Edit description"
     }
   },
   "createMode": {

@@ -483,7 +483,15 @@
       "createWorkspace": "建立工作區",
       "openWorkspace": "開啟工作區",
       "details": "任務詳情",
-      "close": "關閉"
+      "close": "關閉",
+      "edit": "編輯",
+      "save": "儲存",
+      "cancel": "取消",
+      "delete": "刪除",
+      "title": "標題",
+      "description": "描述",
+      "editTitle": "編輯標題",
+      "editDescription": "編輯描述"
     }
   },
   "createMode": {

@@ -483,7 +483,15 @@
       "createWorkspace": "Créer un espace de travail",
       "openWorkspace": "Ouvrir l'espace de travail",
       "details": "Détails de la tâche",
-      "close": "Fermer"
+      "close": "Fermer",
+      "edit": "Modifier",
+      "save": "Enregistrer",
+      "cancel": "Annuler",
+      "delete": "Supprimer",
+      "title": "Titre",
+      "description": "Description",
+      "editTitle": "Modifier le titre",
+      "editDescription": "Modifier la description"
     }
   },
   "createMode": {

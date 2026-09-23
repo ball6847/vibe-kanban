@@ -122,29 +122,48 @@ shot() { # screenshot evidence: a real capture is > 12 KB
 }
 port_from_file() { [ -f /tmp/vibe-kanban/vibe-kanban.port ] && python3 -c "import json;print(json.load(open('/tmp/vibe-kanban/vibe-kanban.port')).get('main_port') or '')" 2>/dev/null; }
 api_get() { curl -s --max-time 12 "$API$1"; }
-task_status() { api_get "/api/tasks/$TID" | python3 -c "
+# There is no GET /api/tasks/{id} route: tasks are read through the project's list.
+task_field() { # task_field <field> [taskId]
+  api_get "/api/tasks?project_id=$PID" | python3 -c "
 import json,sys
-print((json.load(sys.stdin).get('data') or {}).get('status') or '')" 2>/dev/null; }
-task_title() { api_get "/api/tasks/$TID" | python3 -c "
-import json,sys
-print((json.load(sys.stdin).get('data') or {}).get('title') or '')" 2>/dev/null; }
+tid, field = sys.argv[1], sys.argv[2]
+for t in (json.load(sys.stdin).get('data') or []):
+    if t.get('id') == tid:
+        print(t.get(field) or '')
+        break
+" "${2:-$TID}" "${1}" 2>/dev/null; }
+task_status() { task_field status "${1:-}"; }
+task_title() { task_field title "${1:-}"; }
 workspaces_of_task() { api_get "/api/workspaces?task_id=$TID" | python3 -c "
 import json,sys
 print(','.join(w['id'] for w in (json.load(sys.stdin).get('data') or [])))" 2>/dev/null; }
 
-UI="${FRONTEND_PORT:-3003}"
-PORT=""; FE=""
+# Ports drift: `pnpm run dev` may pick 3004/3005 while an older stack holds 3003/3004, and the API's
+# origin guard only allows the frontend origin it was started with (VK_ALLOWED_ORIGINS). Discover both
+# ports instead of assuming, and verify the browser is allowed to mutate before blaming the app.
+UI=""; PORT=""; FE=""
 for _ in $(seq 1 18); do
   PORT=""
-  for cand in "${BACKEND_PORT:-}" "$(port_from_file)" 3004; do
+  for cand in "${BACKEND_PORT:-}" "$(port_from_file)" 3005 3004 3003; do
     [ -n "$cand" ] && [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://localhost:$cand/api/health")" = "200" ] && PORT=$cand && break
   done
-  FE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 4 "http://localhost:$UI/")
-  [ -n "$PORT" ] && [ "$FE" = "200" ] && break
+  UI=""
+  for cand in "${FRONTEND_PORT:-}" 3004 3003; do
+    [ -z "$cand" ] && continue
+    curl -s --max-time 4 "http://localhost:$cand/" 2>/dev/null | grep -q '@vite/client' && UI=$cand && break
+  done
+  if [ -z "$UI" ]; then
+    for cand in "${FRONTEND_PORT:-}" 3004 3003; do
+      [ -z "$cand" ] && continue
+      [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 4 "http://localhost:$cand/")" = "200" ] && UI=$cand && break
+    done
+  fi
+  FE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 4 "http://localhost:${UI:-0}/")
+  [ -n "$PORT" ] && [ -n "$UI" ] && [ "$FE" = "200" ] && break
   sleep 5
 done
-if [ -z "$PORT" ] || [ "$FE" != "200" ]; then
-  NO "dev stack reachable (start 'pnpm run dev', api='$PORT' fe='$FE')" 70
+if [ -z "$PORT" ] || [ -z "$UI" ] || [ "$FE" != "200" ]; then
+  NO "dev stack reachable (start 'pnpm run dev', api='$PORT' ui='$UI' fe='$FE')" 75
 else
   API="http://localhost:$PORT"
   STAMP=$(date +%s)
@@ -174,6 +193,15 @@ print((json.load(sys.stdin).get('data') or {}).get('id') or '')" 2>/dev/null)
     NO "e2e seed (repo/project/task via API)" 70
   else
     OK "e2e seed (repo, project, task)" 2
+    # A misconfigured stack (UI origin not in the API's VK_ALLOWED_ORIGINS) makes every browser
+    # mutation 403, which otherwise looks like a bug in the feature under test.
+    ab_open "http://localhost:$UI/projects/$PID" >/dev/null
+    MUTATE=$(ab_eval "fetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then((r) => r.status)")
+    case "$MUTATE" in
+      403) NO "browser may mutate (403: restart the stack so the API allows $UI)" 5 ;;
+      "") NO "browser may mutate (no answer from the page)" 5 ;;
+      *) OK "browser may mutate (status $MUTATE)" 5 ;;
+    esac
     ab_open "http://localhost:$UI/projects/$PID" >/dev/null
     ab wait "[data-testid=task-card-$TID]" >/dev/null 2>&1
     if [ "$(ab_count "[data-testid=task-card-$TID]")" = "1" ]; then
@@ -220,6 +248,23 @@ print((json.load(sys.stdin).get('data') or {}).get('id') or '')" 2>/dev/null)
         else
           NO "editing the title in the panel persists" 6
         fi
+
+        # the description is editable too
+        if [ "$(ab_count "[data-testid=task-detail-edit-description]")" = "1" ]; then
+          NEWDESC="description set by e2e $STAMP"
+          ab click "[data-testid=task-detail-edit-description]" >/dev/null 2>&1
+          sleep 1
+          ab fill "[data-testid=task-detail-description-input]" "$NEWDESC" >/dev/null 2>&1
+          ab click "[data-testid=task-detail-save]" >/dev/null 2>&1
+          SAVEDDESC=""
+          for _ in $(seq 1 10); do
+            SAVEDDESC=$(task_field description)
+            [ "$SAVEDDESC" = "$NEWDESC" ] && break
+            sleep 2
+          done
+          [ "$SAVEDDESC" = "$NEWDESC" ] && OK "editing the description persists" 5 \
+            || NO "editing the description persists (api: '${SAVEDDESC:0:28}')" 5
+        else NO "editing the description persists" 5; fi
         # --- workspace section: create it from the panel (prefilled), then check the link
         if [ "$(ab_count "[data-testid=task-detail-create-workspace]")" = "1" ]; then
           OK "panel offers the workspace action" 4
@@ -294,7 +339,7 @@ print((json.load(sys.stdin).get('data') or {}).get('task_id') or '')" 2>/dev/nul
                    "editing the title in the panel persists:6" "panel offers the workspace action:4" \
                    "create flow is prefilled from the task:4" "the workspace is linked to the task:6" \
                    "1:1 holds — a second create does not duplicate:6" "task status advanced by itself:8" \
-                   "panel jumps to the workspace:5"; do
+                   "panel jumps to the workspace:5" "editing the description persists:5"; do
           NO "${lbl%:*}" "${lbl##*:}"
         done
       fi
@@ -324,9 +369,7 @@ print((json.load(sys.stdin).get('data') or {}).get('task_id') or '')" 2>/dev/nul
       ab click "[data-testid=kanban-bulk-move]" >/dev/null 2>&1
       ST=""
       for _ in $(seq 1 10); do
-        ST=$(api_get "/api/tasks/$TID2" | python3 -c "
-import json,sys
-print((json.load(sys.stdin).get('data') or {}).get('status') or '')" 2>/dev/null)
+        ST=$(task_status "$TID2")
         [ "$ST" != "todo" ] && break
         sleep 2
       done

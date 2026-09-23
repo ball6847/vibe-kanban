@@ -483,7 +483,15 @@
       "createWorkspace": "ワークスペースを作成",
       "openWorkspace": "ワークスペースを開く",
       "details": "タスクの詳細",
-      "close": "閉じる"
+      "close": "閉じる",
+      "edit": "編集",
+      "save": "保存",
+      "cancel": "キャンセル",
+      "delete": "削除",
+      "title": "タイトル",
+      "description": "説明",
+      "editTitle": "タイトルを編集",
+      "editDescription": "説明を編集"
     }
   },
   "createMode": {
