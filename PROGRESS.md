@@ -1,6 +1,7 @@
 # PROGRESS — link tasks to workspaces
 
-**Current state:** M1 done (backend write path **and** the read filter). Baseline recorded.
+**Current state:** M3 done. e2e passes: create action -> create flow (prefilled from the task) ->
+submit -> workspace created, opened and linked (`GET /api/workspaces?task_id=`).
 
 ## Baseline (M0)
 - `CHECK_FAST=1 ./check.sh` -> `SCORE: 47 / MAX: 104` (full: `68/125`, 335s). Every failure was
@@ -12,8 +13,8 @@
 - [x] M0 - baseline + loop docs reset
 - [x] M1 - backend write path + read filter, proven with curl (positive/negative/control)
 - [ ] M2 - regenerate types (`CreateAndStartWorkspaceRequest.task_id`)
-- [ ] M3 - create-from-task action on the task card (prefilled, carries task_id)
-- [ ] M4 - task card shows/opens linked workspaces
+- [x] M3 - create-from-task action (prefilled, carries task_id) - **verified e2e via agent-browser**
+- [ ] M4 - task card shows/opens linked workspaces (reusable `IssueWorkspacesSection` in packages/ui)
 - [ ] M5 - agent-browser e2e + evidence
 - [ ] M6 - pure logic (`taskWorkspaceLinkModel.ts`) + vitest
 - [ ] M7 - docs
@@ -31,3 +32,17 @@
 - New query cache committed via `pnpm run prepare-db`; `prepare-db:check` green.
 - Proof (curl, dev server rebuilt): linked workspace returned alone by the filter; a workspace
   started without `task_id` is absent from it; the unfiltered list still returns all 5.
+
+## M3 detail (2026-09-23)
+- The draft carries the task: `DraftWorkspaceData.task_id` (Rust, `#[serde(default)]`), regenerated
+  types, `CreateModeInitialState.taskId`, bootstrap (seed + scratch), reducer state, and the
+  debounced draft save.
+- `useCreateModeState`/`CreateModeProvider` expose `taskId`; `CreateChatBoxContainer` sends it as
+  `task_id` (the `null` placeholder is gone).
+- `LocalKanbanBoard` gained the per-task action (`data-testid="task-create-workspace-<id>"`, card
+  test id `task-card-<id>`) which persists the draft (prompt from title+description + task id) and
+  opens `/workspaces/create`; `kanban.task.createWorkspace`/`openWorkspace` added to all 7 locales.
+- Spec amended: the prompt editor does not forward `data-testid`, so the gate locates it by its
+  `aria-label="Markdown editor"` and submits via the composer's `Create` button.
+- Gate fixes: UUID parsing no longer accepts `/workspaces/create` as a workspace (it captured `c`),
+  and the prompt probe reads `textContent` (the editor is a Lexical contenteditable).

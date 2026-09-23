@@ -68,8 +68,8 @@ have "$BOARD" 'task-create-workspace-'                 && OK "board has a create
 have "$BOARD" 'task-open-workspace-'                   && OK "board renders linked workspaces" 5 || NO "board renders linked workspaces" 5
 have "$BOARD" 'task-card-'                             && OK "task cards carry a test id" 3 || NO "task cards carry a test id" 3
 have "$BOARD" 'goToWorkspace'                          && OK "clicking a link opens the workspace" 4 || NO "clicking a link opens the workspace" 4
-grep -rq "workspace-create-submit" packages/web-core/src packages/local-web/src 2>/dev/null \
-  && OK "create flow exposes a submit hook" 3 || NO "create flow exposes a submit hook" 3
+grep -rq "goToWorkspacesCreate" "$BOARD" 2>/dev/null \
+  && OK "create action opens the local create flow" 3 || NO "create action opens the local create flow" 3
 grep -rn "task_id" packages/web-core/src/features/create-mode packages/web-core/src/shared/lib/workspaceCreateState.ts 2>/dev/null | grep -q task_id \
   && OK "create flow carries task_id into the request" 4 || NO "create flow carries task_id into the request" 4
 present "$LINK_MODEL" "taskWorkspaceLinkModel.ts exists" 3
@@ -163,14 +163,17 @@ print((json.load(sys.stdin).get('data') or {}).get('id') or '')" 2>/dev/null)
       sleep 1
       case "$(ab_url)" in */workspaces/create*) OK "create action opens the create flow" 4 ;;
         *) NO "create action opens the create flow (url: $(ab_url))" 4 ;; esac
-      PREFILL=$(ab_eval "document.querySelector('[data-testid=workspace-create-prompt]')?.value || ''")
+      PREFILL=$(ab_eval "[...document.querySelectorAll('[aria-label=\"Markdown editor\"]')].map((e) => e.textContent || '').join(' | ')")
       case "$PREFILL" in *"Link e2e task $STAMP"*) OK "create flow is prefilled from the task" 4 ;;
         *) NO "create flow is prefilled from the task (got '${PREFILL:0:40}')" 4 ;; esac
-      ab click "[data-testid=workspace-create-submit]" >/dev/null 2>&1
+      SUBMIT=$(ab_eval "(() => { const b = [...document.querySelectorAll('button')].find((x) => /^create$/i.test((x.textContent || '').trim())); if (!b) return 'no-button'; b.click(); return 'clicked'; })()")
+      [ "$SUBMIT" = "clicked" ] || echo "  [info] submit button: $SUBMIT"
       WSID=""
+      UUID='[0-9a-f]\{8\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{12\}'
       for _ in $(seq 1 30); do
         U=$(ab_url)
-        case "$U" in */workspaces/*) WSID=$(printf '%s' "$U" | sed -n 's#.*/workspaces/\([0-9a-f-]*\).*#\1#p'); [ -n "$WSID" ] && break ;; esac
+        WSID=$(printf '%s' "$U" | sed -n "s#.*/workspaces/\($UUID\).*#\1#p")
+        [ -n "$WSID" ] && break
         sleep 2
       done
       if [ -n "$WSID" ]; then

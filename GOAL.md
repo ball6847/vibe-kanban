@@ -78,8 +78,8 @@ The loop is endless: once `SCORE: N/N`, keep improving via `IMPROVEMENTS.md`. De
 | Task card root | `data-testid="task-card-<taskId>"` |
 | Create-workspace action | `data-testid="task-create-workspace-<taskId>"` |
 | Linked-workspace control | `data-testid="task-open-workspace-<workspaceId>"` on each linked workspace |
-| Create-flow prompt field | `data-testid="workspace-create-prompt"` |
-| Create-flow submit | `data-testid="workspace-create-submit"` |
+| Create-flow prompt field | the composer's `WYSIWYGEditor` (`aria-label="Markdown editor"`) — it does not forward `data-testid` |
+| Create-flow submit | the composer's `Create` button (matched by accessible name) |
 | i18n keys (`common`) | `kanban.task.createWorkspace`, `kanban.task.openWorkspace` |
 | Open handler | `appNavigation.goToWorkspace(workspaceId)` |
 | Evidence dir | `.context/evidence/task-workspace-link/` |
